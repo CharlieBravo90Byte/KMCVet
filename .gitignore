@@ -1,0 +1,35 @@
+node_modules/
+dist/
+build/
+.turbo/
+*.log
+logs/
+
+# Entorno
+.env
+.env.local
+.env.*.local
+apps/api/.env
+
+# Base de datos local
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Uploads de usuarios
+apps/api/uploads/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporales de desarrollo
+temp_*.tsx
+temp_*.ps1
+
+# Coverage
+coverage/

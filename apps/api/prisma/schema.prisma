@@ -1,0 +1,354 @@
+// ============================================================
+// KMCVet — Prisma Schema
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ── Tenant (Veterinaria) ─────────────────────────────────────
+model Tenant {
+  id             String   @id @default(uuid())
+  slug           String   @unique
+  nombre         String
+  logoUrl        String?
+  colorPrimario  String   @default("#2563EB")
+  colorSecundario String  @default("#10B981")
+  moneda         String   @default("CLP")
+  timezone       String   @default("America/Santiago")
+  modulos        String   @default("atencion,inventario")
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  usuarios    User[]
+  propietarios Owner[]
+  mascotas    Pet[]
+  citas       Appointment[]
+  consultas   Consultation[]
+  productos   Product[]
+  proveedores Supplier[]
+  ordenes     PurchaseOrder[]
+  tiposAtencion AppointmentType[]
+
+  @@map("tenants")
+}
+
+// ── Usuario ──────────────────────────────────────────────────
+model User {
+  id           String   @id @default(uuid())
+  tenantId     String
+  nombre       String
+  email        String
+  passwordHash String
+  telefono     String?
+  rol          UserRole @default(RECEPTIONIST)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  citasVeterinario  Appointment[]  @relation("VetAppointments")
+  consultas         Consultation[] @relation("VetConsultations")
+  movimientosStock  StockMovement[]
+
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  VET
+  RECEPTIONIST
+  INVENTORY
+}
+
+// ── Propietario ──────────────────────────────────────────────
+model Owner {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nombre    String
+  documento String
+  telefono  String
+  email     String?
+  direccion String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mascotas Pet[]
+
+  @@unique([tenantId, documento])
+  @@map("owners")
+}
+
+// ── Mascota ──────────────────────────────────────────────────
+model Pet {
+  id                String    @id @default(uuid())
+  tenantId          String
+  propietarioId     String
+  nombre            String
+  especie           PetSpecies
+  raza              String?
+  sexo              PetSex    @default(UNKNOWN)
+  fechaNacimiento   DateTime?
+  color             String?
+  microchip         String?
+  fotoUrl           String?
+  alergias          String?
+  condicionesPrevias String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  propietario Owner        @relation(fields: [propietarioId], references: [id])
+  citas      Appointment[]
+  consultas  Consultation[]
+  pesosHistorico PetWeight[]
+
+  @@map("pets")
+}
+
+enum PetSpecies {
+  DOG
+  CAT
+  BIRD
+  RABBIT
+  REPTILE
+  OTHER
+}
+
+enum PetSex {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+// ── Peso histórico de la mascota ─────────────────────────────
+model PetWeight {
+  id        String   @id @default(uuid())
+  petId     String
+  pesoKg    Float
+  fecha     DateTime @default(now())
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@map("pet_weights")
+}
+
+// ── Cita ─────────────────────────────────────────────────────
+model Appointment {
+  id            String            @id @default(uuid())
+  tenantId      String
+  mascotaId     String
+  veterinarioId String
+  fechaHora     DateTime
+  duracionMin   Int               @default(30)
+  motivo        String
+  estado        AppointmentStatus @default(PENDING)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mascota     Pet           @relation(fields: [mascotaId], references: [id])
+  veterinario User          @relation("VetAppointments", fields: [veterinarioId], references: [id])
+  consulta    Consultation?
+
+  @@map("appointments")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ── Consulta / Atención ──────────────────────────────────────
+model Consultation {
+  id            String   @id @default(uuid())
+  tenantId      String
+  citaId        String?  @unique
+  veterinarioId String?
+  mascotaId     String
+  pesoKg        Float?
+  temperatura   Float?
+  diagnostico   String
+  tratamiento   String?
+  notas         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cita        Appointment?     @relation(fields: [citaId], references: [id])
+  veterinario User?            @relation("VetConsultations", fields: [veterinarioId], references: [id])
+  mascota     Pet              @relation(fields: [mascotaId], references: [id])
+  receta      PrescriptionItem[]
+  archivos    ConsultationFile[]
+
+  @@map("consultations")
+}
+
+// ── Item de receta ───────────────────────────────────────────
+model PrescriptionItem {
+  id           String @id @default(uuid())
+  consultaId   String
+  productoId   String
+  cantidad     Int
+  indicacion   String?
+
+  consulta Consultation @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  producto Product      @relation(fields: [productoId], references: [id])
+
+  @@map("prescription_items")
+}
+
+// ── Archivo adjunto ──────────────────────────────────────────
+model ConsultationFile {
+  id         String   @id @default(uuid())
+  consultaId String
+  nombre     String
+  url        String
+  mimetype   String
+  createdAt  DateTime @default(now())
+
+  consulta Consultation @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+
+  @@map("consultation_files")
+}
+
+// ── Producto (inventario) ─────────────────────────────────────
+model Product {
+  id               String          @id @default(uuid())
+  tenantId         String
+  nombre           String
+  codigo           String?
+  descripcion      String?
+  categoria        ProductCategory
+  unidad           String          @default("unidad")
+  stockActual      Int             @default(0)
+  stockMinimo      Int             @default(0)
+  stockMaximo      Int?
+  precioCosto      Float?
+  precioVenta      Float?
+  fechaVencimiento DateTime?
+  proveedorId      String?
+  activo           Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  proveedor       Supplier?        @relation(fields: [proveedorId], references: [id])
+  movimientos     StockMovement[]
+  itemsReceta     PrescriptionItem[]
+  itemsOrden      PurchaseOrderItem[]
+
+  @@unique([tenantId, codigo])
+  @@map("products")
+}
+
+enum ProductCategory {
+  MEDICATION
+  FOOD
+  SUPPLY
+  EQUIPMENT
+  OTHER
+}
+
+// ── Movimiento de stock ──────────────────────────────────────
+model StockMovement {
+  id           String            @id @default(uuid())
+  productoId   String
+  tenantId     String
+  usuarioId    String
+  tipo         StockMovementType
+  cantidad     Int
+  referenciaId String?
+  notas        String?
+  fecha        DateTime          @default(now())
+
+  producto Product @relation(fields: [productoId], references: [id])
+  usuario  User    @relation(fields: [usuarioId], references: [id])
+
+  @@map("stock_movements")
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+// ── Proveedor ─────────────────────────────────────────────────
+model Supplier {
+  id       String  @id @default(uuid())
+  tenantId String
+  nombre   String
+  contacto String?
+  telefono String?
+  email    String?
+  activo   Boolean @default(true)
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productos Product[]
+  ordenes  PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+// ── Tipo de atención (motivo cita) — configurable ─────────────
+model AppointmentType {
+  id        String   @id @default(uuid())
+  tenantId  String
+  label     String
+  activo    Boolean  @default(true)
+  orden     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("appointment_types")
+}
+
+// ── Orden de compra ───────────────────────────────────────────
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  tenantId      String
+  proveedorId   String
+  fecha         DateTime            @default(now())
+  numeroFactura String?
+  estado        PurchaseOrderStatus @default(PENDING)
+  notas         String?
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  proveedor  Supplier            @relation(fields: [proveedorId], references: [id])
+  items      PurchaseOrderItem[]
+
+  @@map("purchase_orders")
+}
+
+enum PurchaseOrderStatus {
+  PENDING
+  RECEIVED
+  CANCELLED
+}
+
+// ── Item de orden de compra ───────────────────────────────────
+model PurchaseOrderItem {
+  id             String @id @default(uuid())
+  ordenId        String
+  productoId     String
+  cantidad       Int
+  precioUnitario Float
+
+  orden    PurchaseOrder @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  producto Product       @relation(fields: [productoId], references: [id])
+
+  @@map("purchase_order_items")
+}
