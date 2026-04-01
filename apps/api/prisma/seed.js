@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const client_1 = require("@prisma/client");
-const bcrypt = __importStar(require("bcrypt"));
+const bcrypt = __importStar(require("bcryptjs"));
 const prisma = new client_1.PrismaClient();
 async function main() {
     /* eslint-disable */ console.log(...oo_oo(`872122131_7_2_7_48_4`, '🌱 Ejecutando seed de KMCVet...'));
@@ -49,7 +49,7 @@ async function main() {
             colorSecundario: '#10B981',
             moneda: 'CLP',
             timezone: 'America/Santiago',
-            modulos: ['atencion', 'inventario'],
+            modulos: 'atencion,inventario',
         },
     });
     /* eslint-disable */ console.log(...oo_oo(`872122131_23_2_23_73_4`, `✅ Tenant creado: ${tenant.nombre} (slug: ${tenant.slug})`));

@@ -10,6 +10,8 @@ import { InventarioModule } from './modules/inventario/inventario.module';
 import { AnimalesModule } from './modules/animales/animales.module';
 import { ConsultasModule } from './modules/consultas/consultas.module';
 import { ConfiguracionModule } from './modules/configuracion/configuracion.module';
+import { VentasModule } from './modules/ventas/ventas.module';
+import { PersonalModule } from './modules/personal/personal.module';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { ConfiguracionModule } from './modules/configuracion/configuracion.modul
     AnimalesModule,
     ConsultasModule,
     ConfiguracionModule,
+    VentasModule,
+    PersonalModule,
   ],
 })
 export class AppModule {}

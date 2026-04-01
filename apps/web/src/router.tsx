@@ -6,6 +6,9 @@ import { AgendaPage } from './modules/atencion/AgendaPage';
 import { AnimalesPage } from './modules/animales/AnimalesPage';
 import { InventarioPage } from './modules/inventario/InventarioPage';
 import { ConfiguracionPage } from './modules/configuracion/ConfiguracionPage';
+import { VentasPage } from './modules/ventas/VentasPage';
+import { ReservaPublicaPage } from './modules/atencion/ReservaPublicaPage';
+import { PersonalPage } from './modules/configuracion/PersonalPage';
 
 function PrivateRoute() {
   const token = localStorage.getItem('kmcvet_token');
@@ -19,6 +22,10 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
+    path: '/reservar',
+    element: <ReservaPublicaPage />,
+  },
+  {
     path: '/',
     element: <PrivateRoute />,
     children: [
@@ -28,6 +35,8 @@ export const router = createBrowserRouter([
       { path: 'animales/*', element: <AnimalesPage /> },
       { path: 'inventario/*', element: <InventarioPage /> },
       { path: 'configuracion/*', element: <ConfiguracionPage /> },
+      { path: 'ventas/*', element: <VentasPage /> },
+      { path: 'personal/*', element: <PersonalPage /> },
     ],
   },
 ]);

@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
+import { join } from 'path';
+import { existsSync, mkdirSync, unlinkSync } from 'fs';
 
 @Injectable()
 export class ConfiguracionService {
@@ -80,14 +82,18 @@ export class ConfiguracionService {
   // ─────────────────────────────────────────────────────────
 
   async findTipos(tenantId: string) {
-    const tipos = await this.prisma.appointmentType.findMany({
+    let tipos = await this.prisma.appointmentType.findMany({
       where: { tenantId },
       orderBy: { orden: 'asc' },
     });
 
-    // Si no hay tipos configurados, devolver los defaults
+    // Si no hay tipos en BD, sembrar defaults para que tengan UUID real
     if (tipos.length === 0) {
-      return this.getDefaults();
+      await this.seedTiposDefaults(tenantId);
+      tipos = await this.prisma.appointmentType.findMany({
+        where: { tenantId },
+        orderBy: { orden: 'asc' },
+      });
     }
     return tipos;
   }
@@ -101,6 +107,7 @@ export class ConfiguracionService {
       data: {
         tenantId,
         label: dto.label,
+        precio: dto.precio !== undefined ? Number(dto.precio) : null,
         activo: true,
         orden: (last?.orden ?? 0) + 1,
       },
@@ -115,6 +122,7 @@ export class ConfiguracionService {
       where: { id },
       data: {
         label: dto.label ?? tipo.label,
+        precio: dto.precio !== undefined ? (dto.precio === null ? null : Number(dto.precio)) : tipo.precio,
         activo: dto.activo !== undefined ? dto.activo : tipo.activo,
         orden: dto.orden ?? tipo.orden,
       },
@@ -158,5 +166,133 @@ export class ConfiguracionService {
     const colors = ['emerald', 'teal', 'cyan', 'blue', 'violet', 'rose', 'amber', 'orange'];
     const sum = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
     return colors[sum % colors.length];
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // CLÍNICA (datos de la veterinaria)
+  // ─────────────────────────────────────────────────────────
+
+  async findClinica(tenantId: string) {
+    const t = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!t) throw new NotFoundException('Clínica no encontrada');
+    return {
+      nombre: t.nombre,
+      logoUrl: t.logoUrl ?? null,
+      plantillaBoletaUrl:      (t as any).plantillaBoletaUrl ?? null,
+      plantillaFacturaUrl:     (t as any).plantillaFacturaUrl ?? null,
+      plantillaNotaCreditoUrl: (t as any).plantillaNotaCreditoUrl ?? null,
+      emailClinica: (t as any).emailClinica ?? null,
+      telefonos: (t as any).telefonos ?? null,
+    };
+  }
+
+  async updateClinica(tenantId: string, dto: any) {
+    const data: any = {};
+    if (dto.nombre !== undefined)                    data.nombre                    = dto.nombre;
+    if (dto.logoUrl !== undefined)                    data.logoUrl                   = dto.logoUrl;
+    if (dto.emailClinica !== undefined)               data.emailClinica               = dto.emailClinica;
+    if (dto.telefonos !== undefined)                  data.telefonos                  = dto.telefonos;
+    if (dto.plantillaBoletaUrl !== undefined)         data.plantillaBoletaUrl         = dto.plantillaBoletaUrl;
+    if (dto.plantillaFacturaUrl !== undefined)        data.plantillaFacturaUrl        = dto.plantillaFacturaUrl;
+    if (dto.plantillaNotaCreditoUrl !== undefined)    data.plantillaNotaCreditoUrl    = dto.plantillaNotaCreditoUrl;
+
+    const updated = await this.prisma.tenant.update({ where: { id: tenantId }, data });
+    return {
+      nombre: updated.nombre,
+      logoUrl: updated.logoUrl ?? null,
+      plantillaBoletaUrl:      (updated as any).plantillaBoletaUrl ?? null,
+      plantillaFacturaUrl:     (updated as any).plantillaFacturaUrl ?? null,
+      plantillaNotaCreditoUrl: (updated as any).plantillaNotaCreditoUrl ?? null,
+      emailClinica: (updated as any).emailClinica ?? null,
+      telefonos: (updated as any).telefonos ?? null,
+    };
+  }
+
+  async uploadLogo(tenantId: string, file: Express.Multer.File): Promise<{ logoUrl: string }> {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (tenant?.logoUrl && tenant.logoUrl.startsWith('/uploads/logos/')) {
+      const oldPath = join(process.cwd(), 'uploads', 'logos', tenant.logoUrl.replace('/uploads/logos/', ''));
+      if (existsSync(oldPath)) { try { unlinkSync(oldPath); } catch {} }
+    }
+    const logoUrl = `/uploads/logos/${file.filename}`;
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { logoUrl } });
+    return { logoUrl };
+  }
+
+  async uploadPlantilla(tenantId: string, tipo: string, file: Express.Multer.File): Promise<Record<string, string>> {
+    const fieldMap: Record<string, string> = {
+      boleta:       'plantillaBoletaUrl',
+      factura:      'plantillaFacturaUrl',
+      nota_credito: 'plantillaNotaCreditoUrl',
+    };
+    const field = fieldMap[tipo] ?? 'plantillaBoletaUrl';
+
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    const prev = (tenant as any)?.[field];
+    if (prev && prev.startsWith('/uploads/plantillas/')) {
+      const oldPath = join(process.cwd(), 'uploads', 'plantillas', prev.replace('/uploads/plantillas/', ''));
+      if (existsSync(oldPath)) { try { unlinkSync(oldPath); } catch {} }
+    }
+    const url = `/uploads/plantillas/${file.filename}`;
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { [field]: url } as any });
+    return { [field]: url };
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // FOLIOS (rangos de numeración de documentos tributarios)
+  // ─────────────────────────────────────────────────────────
+
+  async findFolios(tenantId: string) {
+    return this.prisma.folioRange.findMany({
+      where: { tenantId },
+      orderBy: [{ tipo: 'asc' }, { desde: 'asc' }],
+    });
+  }
+
+  async createFolio(tenantId: string, dto: { tipo: string; desde: number; hasta: number; fechaVencimiento?: string | null }) {
+    if (dto.desde > dto.hasta) {
+      throw new ConflictException('El número inicial debe ser menor o igual al final');
+    }
+    return this.prisma.folioRange.create({
+      data: {
+        tenantId,
+        tipo: dto.tipo,
+        desde: dto.desde,
+        hasta: dto.hasta,
+        actual: dto.desde,
+        activo: true,
+        fechaVencimiento: dto.fechaVencimiento ? new Date(dto.fechaVencimiento) : null,
+      },
+    });
+  }
+
+  async deleteFolio(tenantId: string, id: string) {
+    const f = await this.prisma.folioRange.findFirst({ where: { id, tenantId } });
+    if (!f) throw new NotFoundException('Folio no encontrado');
+    await this.prisma.folioRange.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  async getFolioStatus(tenantId: string) {
+    const tipos = ['boleta', 'factura', 'nota_credito'];
+    const result: Record<string, any> = {};
+    for (const tipo of tipos) {
+      const activo = await this.prisma.folioRange.findFirst({
+        where: { tenantId, tipo, activo: true },
+        orderBy: { desde: 'asc' },
+      });
+      if (!activo) {
+        result[tipo] = { disponibles: 0, siguiente: null, estado: 'sin_folios' };
+      } else if (activo.actual > activo.hasta) {
+        result[tipo] = { disponibles: 0, siguiente: null, estado: 'agotado' };
+      } else {
+        result[tipo] = {
+          disponibles: activo.hasta - activo.actual + 1,
+          siguiente: activo.actual,
+          estado: 'ok',
+        };
+      }
+    }
+    return result;
   }
 }

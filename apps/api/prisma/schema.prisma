@@ -16,7 +16,12 @@ model Tenant {
   id             String   @id @default(uuid())
   slug           String   @unique
   nombre         String
-  logoUrl        String?
+  logoUrl              String?
+  plantillaBoletaUrl   String?
+  plantillaFacturaUrl  String?
+  plantillaNotaCreditoUrl String?
+  emailClinica   String?
+  telefonos      String?
   colorPrimario  String   @default("#2563EB")
   colorSecundario String  @default("#10B981")
   moneda         String   @default("CLP")
@@ -35,6 +40,10 @@ model Tenant {
   proveedores Supplier[]
   ordenes     PurchaseOrder[]
   tiposAtencion AppointmentType[]
+  ventas      Sale[]
+  folios      FolioRange[]
+  staff       Staff[]
+  turnos      Turno[]
 
   @@map("tenants")
 }
@@ -56,6 +65,7 @@ model User {
   citasVeterinario  Appointment[]  @relation("VetAppointments")
   consultas         Consultation[] @relation("VetConsultations")
   movimientosStock  StockMovement[]
+  ventas            Sale[]
 
   @@unique([tenantId, email])
   @@map("users")
@@ -248,6 +258,7 @@ model Product {
   movimientos     StockMovement[]
   itemsReceta     PrescriptionItem[]
   itemsOrden      PurchaseOrderItem[]
+  itemsVenta      SaleItem[]
 
   @@unique([tenantId, codigo])
   @@map("products")
@@ -307,6 +318,7 @@ model AppointmentType {
   id        String   @id @default(uuid())
   tenantId  String
   label     String
+  precio    Float?
   activo    Boolean  @default(true)
   orden     Int      @default(0)
   createdAt DateTime @default(now())
@@ -351,4 +363,95 @@ model PurchaseOrderItem {
   producto Product       @relation(fields: [productoId], references: [id])
 
   @@map("purchase_order_items")
+}
+// ── Folio (rango de números de documento tributario) ─────────
+model FolioRange {
+  id                String    @id @default(uuid())
+  tenantId          String
+  tipo              String    // boleta | factura | nota_credito
+  desde             Int       // primer número del rango
+  hasta             Int       // último número del rango
+  actual            Int       // próximo número a usar (inicia en `desde`)
+  activo            Boolean   @default(true)
+  fechaVencimiento  DateTime? // vencimiento gubernamental del rango
+  createdAt         DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("folio_ranges")
+}
+
+// ── Venta ────────────────────────────────────────────────────
+model Sale {
+  id                String   @id @default(uuid())
+  tenantId          String
+  usuarioId         String
+  fecha             DateTime @default(now())
+  total             Float
+  notas             String?
+  tipoDoc           String   @default("boleta") // boleta | factura | nota_credito
+  numeroDocumento   Int?                         // folio asignado
+  estado            String   @default("COMPLETADA") // COMPLETADA | PENDIENTE
+  rutCliente        String?                      // RUT del cliente (requerido para facturas)
+  ventaReferenciaId String?                      // referencia a la venta original (para nota crédito)
+  createdAt         DateTime @default(now())
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario User       @relation(fields: [usuarioId], references: [id])
+  items   SaleItem[]
+
+  @@map("sales")
+}
+
+// ── Item de venta ─────────────────────────────────────────────
+model SaleItem {
+  id             String  @id @default(uuid())
+  saleId         String
+  tipo           String  @default("PRODUCTO") // PRODUCTO | SERVICIO
+  descripcion    String
+  productoId     String?
+  cantidad       Int
+  precioUnitario Float
+  subtotal       Float
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  producto Product? @relation(fields: [productoId], references: [id])
+
+  @@map("sale_items")
+}
+
+// ── Personal de la clínica (roster, no requiere login) ───────
+model Staff {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nombre    String
+  cargo     String   @default("OTRO") // MEDICO_VETERINARIO|ASISTENTE|ENFERMERO|RECEPCIONISTA|TECNICO|OTRO
+  email     String?
+  telefono  String?
+  notas     String?
+  activo    Boolean  @default(true)
+  color     String   @default("emerald")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  turnos Turno[]
+
+  @@map("staff")
+}
+
+// ── Turno de trabajo ─────────────────────────────────────────
+model Turno {
+  id       String   @id @default(uuid())
+  staffId  String
+  tenantId String
+  fecha    String   // YYYY-MM-DD
+  tipo     String   @default("DIA") // MAÑANA|TARDE|NOCHE|DIA|LIBRE
+  notas    String?
+
+  staff  Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, fecha])
+  @@map("turnos")
 }

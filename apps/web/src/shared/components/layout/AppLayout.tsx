@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 
 function IconHome() {
@@ -47,6 +48,20 @@ function IconLogout() {
     </svg>
   );
 }
+function IconSale() {
+  return (
+    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9m5-9v9m4-9v9m5-9l2 9" />
+    </svg>
+  );
+}
+function IconPersonal() {
+  return (
+    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+  );
+}
 
 const navGroups = [
   {
@@ -58,12 +73,14 @@ const navGroups = [
     items: [
       { to: '/atencion', label: 'Atención', icon: <IconCalendar /> },
       { to: '/animales', label: 'Registro Animales', icon: <IconPaw /> },
+      { to: '/ventas', label: 'Ventas', icon: <IconSale /> },
     ],
   },
   {
     label: 'GESTIÓN',
     items: [
       { to: '/inventario', label: 'Inventario', icon: <IconBox /> },
+      { to: '/personal', label: 'Personal', icon: <IconPersonal /> },
     ],
   },
   {
@@ -75,7 +92,29 @@ const navGroups = [
 ];
 
 export function AppLayout() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const [collapsed, setCollapsed]       = useState(false);
+  const [clinicaNombre, setClinicaNombre] = useState('KMCVet');
+  const [clinicaLogo,   setClinicaLogo]   = useState<string | null>(null);
+  const [userEmail,     setUserEmail]     = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('kmcvet_token');
+    if (!token) return;
+    // Decode JWT payload para obtener email del usuario
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (payload.email) setUserEmail(payload.email);
+    } catch {}
+    // Obtener info de la clínica
+    fetch('/api/configuracion/clinica', { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.nombre) { setClinicaNombre(d.nombre); setClinicaLogo(d.logoUrl ?? null); } })
+      .catch(() => {});
+  }, []);
+
+  const userIniciales = userEmail ? userEmail.split('@')[0].slice(0, 2).toUpperCase() : 'AD';
+  const userNombre    = userEmail ? userEmail.split('@')[0] : 'Administrador';
 
   function logout() {
     localStorage.removeItem('kmcvet_token');
@@ -85,38 +124,57 @@ export function AppLayout() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 bg-green-900 text-white flex flex-col shadow-xl flex-shrink-0">
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-green-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-400 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
-              <svg className="w-6 h-6 text-green-900" fill="currentColor" viewBox="0 0 24 24">
-                <ellipse cx="5.5" cy="6.5" rx="2" ry="2.5" />
-                <ellipse cx="10" cy="4.5" rx="2" ry="2.5" />
-                <ellipse cx="14" cy="4.5" rx="2" ry="2.5" />
-                <ellipse cx="18.5" cy="6.5" rx="2" ry="2.5" />
-                <path d="M12 9.5c-3.8 0-7 2.3-7 5.8 0 2.3 1.8 4.2 4 4.2h6c2.2 0 4-1.9 4-4.2 0-3.5-3.2-5.8-7-5.8z" />
-              </svg>
+      <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-green-900 text-white flex flex-col shadow-xl flex-shrink-0 transition-all duration-200`}>
+        {/* Logo / Collapse toggle */}
+        <div className={`${collapsed ? 'px-3 py-4' : 'px-5 py-5'} border-b border-green-800`}>
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md flex-shrink-0 cursor-pointer overflow-hidden ${clinicaLogo ? 'bg-white/10' : 'bg-emerald-400'}`}
+              onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Expandir menú' : 'Colapsar menú'}>
+              {clinicaLogo
+                ? <img src={clinicaLogo} alt="logo" className="w-10 h-10 object-cover" />
+                : (
+                  <svg className="w-6 h-6 text-green-900" fill="currentColor" viewBox="0 0 24 24">
+                    <ellipse cx="5.5" cy="6.5" rx="2" ry="2.5" />
+                    <ellipse cx="10" cy="4.5" rx="2" ry="2.5" />
+                    <ellipse cx="14" cy="4.5" rx="2" ry="2.5" />
+                    <ellipse cx="18.5" cy="6.5" rx="2" ry="2.5" />
+                    <path d="M12 9.5c-3.8 0-7 2.3-7 5.8 0 2.3 1.8 4.2 4 4.2h6c2.2 0 4-1.9 4-4.2 0-3.5-3.2-5.8-7-5.8z" />
+                  </svg>
+                )
+              }
             </div>
-            <div>
-              <p className="font-bold text-base leading-tight tracking-wide">KMCVet</p>
-              <p className="text-xs text-green-300 leading-tight">Gestión Veterinaria</p>
-            </div>
+            {!collapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-base leading-tight tracking-wide truncate">{clinicaNombre}</p>
+                <p className="text-xs text-green-300 leading-tight">Gestión Veterinaria</p>
+              </div>
+            )}
+            {!collapsed && (
+              <button onClick={() => setCollapsed(true)} title="Colapsar menú"
+                className="text-green-400 hover:text-white transition-colors ml-auto">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-5 overflow-y-auto space-y-5">
+        <nav className={`flex-1 ${collapsed ? 'px-2' : 'px-3'} py-5 overflow-y-auto space-y-5`}>
           {navGroups.map((group) => (
             <div key={group.label}>
-              <p className="text-xs font-semibold text-green-500 px-3 mb-1.5 tracking-widest">{group.label}</p>
+              {!collapsed && (
+                <p className="text-xs font-semibold text-green-500 px-3 mb-1.5 tracking-widest">{group.label}</p>
+              )}
               <div className="space-y-0.5">
                 {group.items.map(({ to, label, icon }) => (
                   <NavLink
                     key={to}
                     to={to}
+                    title={collapsed ? label : undefined}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+                      `flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                         isActive
                           ? 'bg-emerald-400 text-green-900 shadow-sm'
                           : 'text-green-200 hover:bg-green-800 hover:text-white'
@@ -124,7 +182,7 @@ export function AppLayout() {
                     }
                   >
                     {icon}
-                    <span>{label}</span>
+                    {!collapsed && <span>{label}</span>}
                   </NavLink>
                 ))}
               </div>
@@ -133,29 +191,40 @@ export function AppLayout() {
         </nav>
 
         {/* User + logout */}
-        <div className="px-3 py-4 border-t border-green-800">
-          <div className="flex items-center gap-3 px-3 py-2 mb-1">
-            <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center text-xs font-bold text-emerald-300 flex-shrink-0">AD</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-green-100 truncate">Administrador</p>
-              <p className="text-xs text-green-400 truncate">admin@demo.kmcvet.com</p>
+        <div className={`${collapsed ? 'px-2' : 'px-3'} py-4 border-t border-green-800`}>
+          {!collapsed && (
+            <div className="flex items-center gap-3 px-3 py-2 mb-1">
+              <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center text-xs font-bold text-emerald-300 flex-shrink-0">{userIniciales}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-green-100 truncate">{userNombre}</p>
+                <p className="text-xs text-green-400 truncate">{userEmail || 'admin@demo.kmcvet.com'}</p>
+              </div>
             </div>
-          </div>
+          )}
           <button
             onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-green-300 hover:bg-green-800 hover:text-white rounded-lg transition-colors"
+            title="Cerrar sesión"
+            className={`w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2 text-sm text-green-300 hover:bg-green-800 hover:text-white rounded-lg transition-colors`}
           >
             <IconLogout />
-            Cerrar sesión
+            {!collapsed && 'Cerrar sesión'}
           </button>
+          {collapsed && (
+            <button onClick={() => setCollapsed(false)} title="Expandir menú"
+              className="w-full flex items-center justify-center py-2 mt-1 text-green-400 hover:text-white rounded-lg hover:bg-green-800 transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
         </div>
       </aside>
 
       {/* Content area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top bar */}
-        <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0 shadow-sm">
-          <p className="text-xs text-gray-400 font-medium">Clínica Veterinaria Demo</p>
+        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0 shadow-sm">
+          <p className="text-xs text-gray-400 font-medium">{clinicaNombre}</p>
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
             Sistema activo

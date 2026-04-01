@@ -74,6 +74,63 @@ export class AtencionService {
     return { ok: true };
   }
 
+  // ── Reserva pública (sin JWT) ─────────────────────────────────
+  async createPublica(tenantId: string, dto: {
+    fecha: string;
+    hora: number;
+    duracion: number;
+    mascota: string;
+    propietario: string;
+    telefonoPropietario?: string;
+    motivo: string;
+    doctorId: string;
+  }) {
+    const mascota = await this.getOrCreatePet(tenantId, dto.mascota, dto.propietario, dto.telefonoPropietario);
+    const fechaHora = this.buildFechaHora(dto.fecha, dto.hora);
+
+    // Si se envía un doctorId válido, usarlo; si no, asignar a cualquier vet disponible
+    let veterinarioId: string | null = null;
+    if (dto.doctorId) {
+      const vet = await this.prisma.user.findFirst({ where: { id: dto.doctorId, tenantId, activo: true } });
+      if (vet) veterinarioId = vet.id;
+    }
+    if (!veterinarioId) {
+      const anyVet = await this.prisma.user.findFirst({ where: { tenantId, rol: 'VET', activo: true } });
+      if (anyVet) veterinarioId = anyVet.id;
+    }
+    if (!veterinarioId) {
+      const vet = await this.getOrCreateVet(tenantId, 'd1');
+      veterinarioId = vet.id;
+    }
+
+    const cita = await this.prisma.appointment.create({
+      data: {
+        tenantId,
+        mascotaId: mascota.id,
+        veterinarioId,
+        fechaHora,
+        duracionMin: dto.duracion,
+        motivo: dto.motivo,
+        estado: 'PENDING',
+      },
+      include: {
+        mascota: { select: { nombre: true, propietario: { select: { nombre: true } } } },
+        veterinario: { select: { nombre: true, email: true } },
+      },
+    });
+
+    return {
+      ok: true,
+      mensaje: '¡Reserva registrada! La clínica te contactará para confirmar.',
+      cita: {
+        fecha: dto.fecha,
+        hora: dto.hora,
+        motivo: dto.motivo,
+        doctor: cita.veterinario?.nombre ?? '',
+      },
+    };
+  }
+
   // ── Helpers privados ──────────────────────────────────────────
   private buildFechaHora(fecha: string, minutosDesdeInicio: number): Date {
     // minutosDesdeInicio = minutos desde las 09:00
@@ -89,6 +146,16 @@ export class AtencionService {
   }
 
   private async getOrCreateVet(tenantId: string, doctorId: string) {
+    // Si doctorId parece un UUID real, buscar directamente en la BD
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(doctorId)) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: doctorId, tenantId },
+      });
+      if (user) return user;
+    }
+
+    // Fallback: convención antigua d1/d2/d3 (compatibilidad)
     const nombresVet: Record<string, string> = {
       d1: 'Doctor 1', d2: 'Doctor 2', d3: 'Doctor 3',
     };
@@ -109,7 +176,7 @@ export class AtencionService {
     return user;
   }
 
-  private async getOrCreatePet(tenantId: string, nombreMascota: string, nombrePropietario: string) {
+  private async getOrCreatePet(tenantId: string, nombreMascota: string, nombrePropietario: string, telefonoPropietario?: string) {
     // Buscar mascota por nombre en el tenant
     let pet = await this.prisma.pet.findFirst({
       where: { tenantId, nombre: nombreMascota },
@@ -126,7 +193,7 @@ export class AtencionService {
             tenantId,
             nombre: nombrePropietario || 'Propietario desconocido',
             documento: `tmp-${Date.now()}`,
-            telefono: '000000000',
+            telefono: telefonoPropietario || '000000000',
           },
         });
       }
@@ -165,10 +232,6 @@ export class AtencionService {
     const minutos  = d.getMinutes();
     const horaMin  = horas * 60 + minutos - 9 * 60; // minutos desde 09:00
 
-    // Determinar doctorId desde el email del veterinario
-    const email = c.veterinario?.email ?? '';
-    const docId = email.startsWith('d') ? email.split('@')[0] : 'd1';
-
     return {
       id: c.id,
       fecha: fechaStr,
@@ -178,7 +241,8 @@ export class AtencionService {
       mascotaId: c.mascotaId ?? '',
       propietario: c.mascota?.propietario?.nombre ?? '',
       motivo: c.motivo,
-      doctorId: docId,
+      doctorId: c.veterinarioId ?? '',
+      doctorNombre: c.veterinario?.nombre ?? '',
       estado: c.estado,
     };
   }

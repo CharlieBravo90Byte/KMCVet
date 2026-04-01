@@ -1,6 +1,119 @@
 import { useState, useMemo, useEffect } from 'react';
 import { apiClient } from '../../shared/lib/api';
 
+// ─── Exportar a Excel (CSV UTF-8 con BOM — abre directo en Excel) ─
+function exportarExcel(productos: Producto[], filtro: 'con' | 'sin' | 'todos') {
+  const fecha = new Date().toISOString().split('T')[0];
+
+  const fuente = filtro === 'con'
+    ? productos.filter(p => p.stockActual > 0)
+    : filtro === 'sin'
+    ? productos.filter(p => p.stockActual === 0)
+    : productos;
+
+  const CATS: Record<string, string> = {
+    medicamento: 'Medicamento', alimento: 'Alimento',
+    accesorio: 'Accesorio', clinico: 'Material clínico', otro: 'Otro',
+  };
+
+  const fmtCLP = (n: number) => n > 0 ? n.toString() : '';
+
+  const cabecera = ['Nombre', 'Código', 'Categoría', 'Unidad', 'Stock actual',
+    'Stock mínimo', 'Precio compra (CLP)', 'Precio venta (CLP)',
+    'Proveedor', 'Fecha vencimiento', 'Descripción'];
+
+  const filas = fuente.map(p => [
+    p.nombre,
+    p.codigo,
+    CATS[p.categoria] ?? p.categoria,
+    p.unidad,
+    p.stockActual.toString(),
+    p.stockMinimo.toString(),
+    fmtCLP(p.precioCompra),
+    fmtCLP(p.precioVenta),
+    p.proveedor,
+    p.fechaVencimiento,
+    p.descripcion,
+  ]);
+
+  const escapar = (v: string) => {
+    if (v.includes(';') || v.includes('"') || v.includes('\n')) {
+      return `"${v.replace(/"/g, '""')}"`;
+    }
+    return v;
+  };
+
+  const csv = [cabecera, ...filas]
+    .map(fila => fila.map(escapar).join(';'))
+    .join('\r\n');
+
+  // BOM UTF-8 para que Excel detecte la codificación correctamente
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `inventario_${filtro}_${fecha}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Modal selector de exportación ───────────────────────────────
+function ModalExportar({
+  onExport, onClose,
+}: {
+  onExport: (f: 'con' | 'sin' | 'todos') => void;
+  onClose: () => void;
+}) {
+  const opciones: { key: 'con' | 'sin' | 'todos'; label: string; desc: string; icon: string }[] = [
+    { key: 'con',   label: 'Con stock',    desc: 'Solo productos con stock disponible (> 0)', icon: '✅' },
+    { key: 'sin',   label: 'Sin stock',    desc: 'Solo productos agotados (stock = 0)',        icon: '❌' },
+    { key: 'todos', label: 'Todos',        desc: 'Todo el inventario sin filtrar',             icon: '📋' },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-bold text-gray-800 text-base">Exportar inventario</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Selecciona qué productos incluir</p>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="px-6 py-4 space-y-2">
+          {opciones.map(op => (
+            <button
+              key={op.key}
+              onClick={() => { onExport(op.key); onClose(); }}
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50 transition-all text-left group"
+            >
+              <span className="text-2xl">{op.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800 group-hover:text-emerald-700">{op.label}</p>
+                <p className="text-xs text-gray-400">{op.desc}</p>
+              </div>
+              <svg className="w-4 h-4 text-gray-300 group-hover:text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+            </button>
+          ))}
+        </div>
+        <div className="px-6 pb-5">
+          <p className="text-[10px] text-gray-400 text-center">
+            Se descargará un archivo .CSV compatible con Microsoft Excel
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tipos ────────────────────────────────────────────────────────
 type Categoria = 'medicamento' | 'alimento' | 'accesorio' | 'clinico' | 'otro';
 type TipoDocumento = 'boleta' | 'factura' | 'nota_debito';
@@ -508,6 +621,7 @@ export function InventarioPage() {
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showExportar, setShowExportar] = useState(false);
   const [editProd, setEditProd]   = useState<Producto | null>(null);
   const [search, setSearch]       = useState('');
   const [filtrocat, setFiltrocat] = useState<Categoria | ''>('');
@@ -562,15 +676,26 @@ export function InventarioPage() {
           <h1 className="text-xl font-bold text-gray-800">Inventario</h1>
           <p className="text-sm text-gray-400 mt-0.5">Control de productos y stock</p>
         </div>
-        <button
-          onClick={() => { setEditProd(null); setShowModal(true); }}
-          className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-          </svg>
-          Registrar entrada
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowExportar(true)}
+            className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-50 hover:border-emerald-300 hover:text-emerald-700 transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+            </svg>
+            Exportar Excel
+          </button>
+          <button
+            onClick={() => { setEditProd(null); setShowModal(true); }}
+            className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            Registrar entrada
+          </button>
+        </div>
       </div>
 
       {/* Category cards */}
@@ -646,7 +771,7 @@ export function InventarioPage() {
                   <p className="text-sm font-semibold text-gray-800 truncate">{p.nombre}</p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {p.codigo && <span className="text-[10px] text-gray-400">{p.codigo}</span>}
-                    {p.proveedor && <span className="text-[10px] text-gray-400">{middot} {p.proveedor}</span>}
+                    {p.proveedor && <span className="text-[10px] text-gray-400">· {p.proveedor}</span>}
                     {vence && <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">Vence pronto</span>}
                   </div>
                 </div>
@@ -692,6 +817,13 @@ export function InventarioPage() {
           onSave={guardar}
           initial={editProd ? editProd : undefined}
           saving={saving}
+        />
+      )}
+
+      {showExportar && (
+        <ModalExportar
+          onExport={filtro => exportarExcel(productos, filtro)}
+          onClose={() => setShowExportar(false)}
         />
       )}
     </div>

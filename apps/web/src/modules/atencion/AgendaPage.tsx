@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../shared/lib/api';
 // ─── Tipos ────────────────────────────────────────────────────────
 type Duration = 15 | 30 | 60;
@@ -30,6 +31,7 @@ interface Cita {
   propietario: string;
   motivo: string;
   doctorId: string;
+  doctorNombre?: string;
 }
 
 interface FormCita {
@@ -138,11 +140,13 @@ function ModalDetalleCita({
   doctores,
   onClose,
   onEliminar,
+  onCobrar,
 }: {
   cita: Cita;
   doctores: Doctor[];
   onClose: () => void;
   onEliminar: (id: string) => void;
+  onCobrar: (cita: Cita) => void;
 }) {
   const [historial, setHistorial] = useState<Cita[]>([]);
   const [loadingH, setLoadingH]   = useState(false);
@@ -172,7 +176,7 @@ function ModalDetalleCita({
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <span className={`w-3 h-3 rounded-full inline-block ${doc?.color ?? 'bg-gray-400'}`} />
-              <span className={`font-bold text-base ${headerText}`}>{doc?.nombre ?? 'Sin doctor asignado'}</span>
+              <span className={`font-bold text-base ${headerText}`}>{doc?.nombre ?? cita.doctorNombre ?? 'Sin doctor asignado'}</span>
             </div>
             <p className="text-xs text-gray-500">
               {parseFechaLabel(cita.fecha)} · {minToHms(cita.hora)} · {cita.duracion === 60 ? '1 hora' : `${cita.duracion} min`}
@@ -255,9 +259,18 @@ function ModalDetalleCita({
         <div className="flex gap-2 px-6 pb-5 pt-3 border-t border-gray-100 flex-shrink-0">
           <button
             onClick={() => { onEliminar(cita.id); onClose(); }}
-            className="flex-1 py-2 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+            className="py-2 px-3 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
           >
-            Eliminar cita
+            Eliminar
+          </button>
+          <button
+            onClick={() => { onCobrar(cita); onClose(); }}
+            className="flex-1 py-2 rounded-lg text-sm font-medium bg-amber-500 hover:bg-amber-600 text-white transition-colors flex items-center justify-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Cobrar
           </button>
           <button
             onClick={onClose}
@@ -796,6 +809,7 @@ function VistaMonthly({
 // ─── Página principal ─────────────────────────────────────────────
 export function AgendaPage() {
   const hoy = new Date();
+  const navigate = useNavigate();
 
   const [vista, setVista]                 = useState<Vista>('semana');
   const [navBase, setNavBase]             = useState(hoy);
@@ -1261,6 +1275,10 @@ export function AgendaPage() {
           doctores={doctores}
           onClose={() => setCitaDetalle(null)}
           onEliminar={id => { eliminarCita(id); setCitaDetalle(null); }}
+          onCobrar={(cita) => {
+            setCitaDetalle(null);
+            navigate('/ventas', { state: { motivo: cita.motivo, mascota: cita.mascota, propietario: cita.propietario } });
+          }}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 # KMCVet — Documento de Proyecto
 
-> Versión: 0.7.0 — Inicio: 24 de marzo de 2026  
+> Versión: 0.8.0 — Inicio: 24 de marzo de 2026  
 > Estado: Desarrollo activo (Fase 0 completada + Fase 1 y 2 avanzadas)
 
 ---
@@ -535,12 +535,13 @@ kmcvet/
 | 2026-03-25 | 0.5.0 | **Persistencia BD completa para Animales e Inventario.** AnimalesPage: formulario multi-paso (Propietario→Mascota→Resumen), foto upload, 6 especies con razas, historial de peso. InventarioPage: formulario 3 pestañas (Documento/Producto/Stock), cálculo IVA/total automático, margen de precio, alertas stock y vencimiento. Backend: `AnimalesModule` + `InventarioModule` con endpoints REST protegidos por JWT. Los datos se guardan en SQLite: `owners`, `pets`, `pet_weights`, `products`, `suppliers`, `stock_movements`. Propietarios deduplicados por RUT/documento. | — |
 | 2026-03-25 | 0.6.0 | **Persistencia citas + Auth guard + Tutor search + Renombrado UI.** (1) `AtencionModule`: `GET /api/citas?desde=&hasta=`, `POST /api/citas`, `DELETE /api/citas/:id` — citas vinculadas a `Pet` real; acepta `mascotaId` opcional o crea pet por nombre. (2) `PrivateRoute` en `router.tsx`: redirige a `/login` si no hay `kmcvet_token` — fix de errores 401. (3) Renombrado global "Propietario" → "Tutor" en toda la interfaz (AnimalesPage, AgendaPage). (4) Modal nueva cita rediseñado: búsqueda por RUT del tutor → lista de mascotas registradas → selección o creación inline. (5) Nuevo endpoint `GET /api/animales/buscar-tutor?rut=XXX`. (6) `animales.service.ts`: `mapPet()` devuelve campo `tutor`, métodos `create`/`update` aceptan `dto.tutor` o `dto.propietario` (compatibilidad). | — |
 | 2026-03-26 | 0.7.0 | **Modal de detalle de cita + historial por mascota + fix JWT + fix fecha.** (1) `ModalDetalleCita`: clic en cualquier cita (grid semanal o panel lateral) abre modal con doctor, fecha/hora/duración, mascota, tutor y motivo. (2) Historial de atenciones **por mascota** (no por tutor) en el modal — cita seleccionada excluida del listado. (3) Nuevo endpoint `GET /api/citas/historial/:mascotaId`. (4) `mapCita()` actualizado: devuelve `mascotaId` y `propietario` (obtenido del join `mascota.propietario.nombre`). (5) Fix `JWT_EXPIRES_IN`: cambiado de `15m` a `8h` — token expiraba en plena jornada causando 401 en todas las peticiones. (6) Fix fecha hardcodeada: `new Date(2026, 2, 25)` → `new Date()` (corregido en sesión anterior). | — |
+| 2026-04-01 | 0.8.0 | **Módulo Ventas completo: folios SII, tipos de documento, RUT cliente, Nota de Crédito, cobros pendientes.** (1) **Sistema de Folios** (`FolioRange` model): rango desde/hasta/actual por tipo (boleta/factura/nota_credito), vencimiento, UI en Configuración → Folios con historial (Van/Quedan). (2) **Boleta PDF mejorada**: HTML A4 con CSS, folio real, tipo doc, IVA referencial desglosado, plantilla de imagen por tipo. (3) **Ventas PENDIENTE/COMPLETADA**: venta sin folio activo queda en estado PENDIENTE; endpoint `PUT /api/ventas/:id/completar` asigna folio retroactivamente. (4) **Tab Pendiente** en VentasPage: listado separado con banner genérico; botón «Reintentar» carga los ítems de vuelta en «Nuevo cobro» (en lugar de reintentar asignación de folio). (5) **Selector tipoDoc**: dropdown boleta/factura en «Nuevo cobro»; campo RUT cliente opcional para boleta, obligatorio para factura; auto-relleno desde `location.state.rutPropietario` cuando viene desde la agenda. (6) **Nota de Crédito** (`nota_credito`): endpoint `POST /api/ventas/:id/nota-credito` crea documento referenciando la venta original (`ventaReferenciaId`), intenta asignar folio NC; botón «NC» por fila en Historial abre `ModalNotaCredito` con motivo obligatorio; filas NC se muestran en rojo en la tabla. (7) **VentasPage Historial mejorado**: badge BOL/FCT/NC + N° folio en columna Fecha; total NC en rojo. (8) **PDF Nota de Crédito**: referencia al documento original en la boleta impresa; RUT cliente incluido si está disponible. (9) Migración `20260402000000_sale_rut_referencia`: `rutCliente TEXT`, `ventaReferenciaId TEXT` en tabla `sales`. | — |
 
 ---
 
-> **Estado actual**: Fase 0 completada + Fase 1 base completa + Fase 2 avanzada (v0.7.0). Sistema funcional con `node apps/api/dist/main.js`.
+> **Estado actual**: Fase 0 completada + Fase 1 base completa + Fase 2 avanzada (v0.8.0). Sistema funcional con `node apps/api/dist/main.js`.
 >
-> **Persistencia activa**: Animales, Inventario y Citas guardan en SQLite. Los datos sobreviven reinicios del servidor.
+> **Persistencia activa**: Animales, Inventario, Citas, Ventas, Folios guardan en SQLite. Los datos sobreviven reinicios del servidor.
 >
 > **Auth activa**: `PrivateRoute` en router — cualquier acceso sin token JWT redirige a `/login`.
 >
@@ -548,8 +549,11 @@ kmcvet/
 > - `POST /api/auth/login`
 > - `GET|POST|PUT|DELETE /api/animales` + `GET /api/animales/buscar-tutor?rut=XXX`
 > - `GET|POST|PUT /api/inventario`
-> - `GET /api/citas?desde=&hasta=` + `POST /api/citas` + `DELETE /api/citas/:id`
+> - `GET /api/citas?desde=&hasta=` + `POST /api/citas` + `DELETE /api/citas/:id` + `GET /api/citas/historial/:mascotaId`
+> - `GET|POST /api/ventas` + `PUT /api/ventas/:id/completar` + `POST /api/ventas/:id/nota-credito`
+> - `GET|PUT /api/configuracion/clinica` + `GET|POST /api/configuracion/tipos-atencion` + `GET|POST /api/configuracion/folios`
+> - `GET|POST /api/reserva/doctores|motivos|disponibilidad|{POST}`
 >
-> Todos los endpoints (excepto login) requieren JWT en header `Authorization: Bearer <token>`.
+> Todos los endpoints (excepto login y `/api/reserva/*`) requieren JWT en header `Authorization: Bearer <token>`.
 >
-> **Próximo paso**: ficha de consulta (diagnóstico, tratamiento) vinculada a cita; historial clínico por mascota.
+> **Próximo paso**: ficha de consulta (diagnóstico, tratamiento) vinculada a cita; historial clínico por mascota; envío de boleta por email.
