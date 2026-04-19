@@ -22,7 +22,7 @@ kmcvet/
 - Node.js >= 22
 - pnpm >= 10
 
-> No se necesita Docker, PostgreSQL, Redis ni MinIO.  
+> No se necesita Docker, PostgreSQL, Redis ni MinIO. Todo está embebido para facilitar el desarrollo local y despliegue simple.
 > La base de datos es SQLite (archivo local `apps/api/prisma/kmcvet.db`).
 
 ## Inicio rápido

@@ -9,6 +9,7 @@ import { ConfiguracionPage } from './modules/configuracion/ConfiguracionPage';
 import { VentasPage } from './modules/ventas/VentasPage';
 import { ReservaPublicaPage } from './modules/atencion/ReservaPublicaPage';
 import { PersonalPage } from './modules/configuracion/PersonalPage';
+import { HospitalPage } from './modules/hospital/HospitalPage';
 
 function PrivateRoute() {
   const token = localStorage.getItem('kmcvet_token');
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
       { path: 'configuracion/*', element: <ConfiguracionPage /> },
       { path: 'ventas/*', element: <VentasPage /> },
       { path: 'personal/*', element: <PersonalPage /> },
+      { path: 'hospital/*', element: <HospitalPage /> },
     ],
   },
 ]);

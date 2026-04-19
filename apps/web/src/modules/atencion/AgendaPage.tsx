@@ -86,6 +86,19 @@ const DIAS    = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const MESES   = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const MESES_C = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
+// Feriados Chile — domingos siempre bloqueados por código
+const FERIADOS_CL = new Set([
+  '2026-01-01','2026-04-02','2026-04-03','2026-05-01','2026-05-21',
+  '2026-06-29','2026-07-16','2026-08-15','2026-09-18','2026-09-19',
+  '2026-10-12','2026-10-31','2026-11-01','2026-12-08','2026-12-25',
+  '2027-01-01','2027-04-01','2027-04-02','2027-05-01','2027-05-21',
+  '2027-06-29','2027-07-16','2027-08-15','2027-09-18','2027-09-19',
+  '2027-10-12','2027-11-01','2027-12-08','2027-12-25',
+]);
+function isDiaNoHabil(fecha: string): boolean {
+  return new Date(fecha + 'T12:00:00').getDay() === 0 || FERIADOS_CL.has(fecha);
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────
 function minToHms(min: number): string {
   const t = HORA_INICIO + min;
@@ -746,6 +759,7 @@ function VistaMonthly({
               const fk       = dateKey(d);
               const isHoy    = fk === hoyKey;
               const isSel    = fk === selectedFecha;
+              const noHabil  = isDiaNoHabil(fk);
               const citasDia = citas.filter(c => c.fecha === fk);
               const MAX_VIS  = 3;
               const visibles = citasDia.slice(0, MAX_VIS);
@@ -754,30 +768,37 @@ function VistaMonthly({
               return (
                 <div
                   key={di}
-                  className={`min-h-[110px] p-1.5 border-t border-gray-50 cursor-pointer transition-colors group ${
-                    isSel  ? 'bg-emerald-50 ring-1 ring-inset ring-emerald-300' :
-                    isHoy  ? 'bg-emerald-50/50' :
-                    'hover:bg-gray-50'
+                  className={`min-h-[110px] p-1.5 border-t border-gray-50 transition-colors group ${
+                    noHabil ? 'bg-gray-100/60 cursor-not-allowed' :
+                    isSel  ? 'bg-emerald-50 ring-1 ring-inset ring-emerald-300 cursor-pointer' :
+                    isHoy  ? 'bg-emerald-50/50 cursor-pointer' :
+                    'hover:bg-gray-50 cursor-pointer'
                   }`}
-                  onClick={() => onSelectFecha(fk)}
+                  onClick={() => !noHabil && onSelectFecha(fk)}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`text-xs font-bold inline-flex items-center justify-center w-6 h-6 rounded-full transition-colors ${
+                      noHabil ? 'text-gray-300' :
                       isHoy ? 'bg-emerald-600 text-white' :
                       isSel ? 'bg-emerald-100 text-emerald-700' :
                       'text-gray-700 group-hover:bg-gray-100'
                     }`}>
                       {d.getDate()}
                     </span>
-                    <button
-                      onClick={e => { e.stopPropagation(); onNuevaCita(fk); }}
-                      className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-100 transition-all"
-                      title={`Nueva cita ${parseFechaLabel(fk)}`}
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-                      </svg>
-                    </button>
+                    {noHabil
+                      ? <span className="text-[8px] text-gray-300 font-medium">{new Date(fk + 'T12:00:00').getDay() === 0 ? 'Dom' : 'Feriado'}</span>
+                      : (
+                        <button
+                          onClick={e => { e.stopPropagation(); onNuevaCita(fk); }}
+                          className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-100 transition-all"
+                          title={`Nueva cita ${parseFechaLabel(fk)}`}
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+                          </svg>
+                        </button>
+                      )
+                    }
                   </div>
 
                   <div className="space-y-0.5">
@@ -1082,7 +1103,8 @@ export function AgendaPage() {
                     style={{ height: gridH }}
                   >
                     {doctores.map((doc, docIdx) => {
-                      const fk       = dateKey(d);
+                      const fk         = dateKey(d);
+                      const diaNoHabil = isDiaNoHabil(fk);
                       const citasDoc = citas.filter(c => c.fecha === fk && c.doctorId === doc.id);
                       return (
                         <div
@@ -1094,16 +1116,16 @@ export function AgendaPage() {
                             <div key={hi} className="absolute w-full border-t border-gray-100" style={{ top: hi * SLOT_PX }} />
                           ))}
                           {Array.from({ length: (HORA_FIN - HORA_INICIO) / 15 }, (_, si) => si * 15).map(minOff => {
-                            const ocupado = isOcupado(citas, doc.id, fk, minOff, 15);
+                            const ocupado = !diaNoHabil && isOcupado(citas, doc.id, fk, minOff, 15);
                             return (
                               <div
                                 key={minOff}
                                 className={`absolute w-full transition-colors ${
-                                  ocupado ? 'cursor-default' : `cursor-pointer ${doc.hoverBg}`
+                                  diaNoHabil || ocupado ? 'cursor-default' : `cursor-pointer ${doc.hoverBg}`
                                 }`}
                                 style={{ top: minOff * pxMin, height: 15 * pxMin }}
-                                onClick={() => !ocupado && clickSlotSemana(fk, minOff, doc.id)}
-                                title={ocupado ? '' : `${doc.nombre} – ${minToHms(minOff)}`}
+                                onClick={() => !diaNoHabil && !ocupado && clickSlotSemana(fk, minOff, doc.id)}
+                                title={diaNoHabil || ocupado ? '' : `${doc.nombre} – ${minToHms(minOff)}`}
                               />
                             );
                           })}
@@ -1134,6 +1156,13 @@ export function AgendaPage() {
                               </div>
                             );
                           })}
+                          {diaNoHabil && (
+                            <div className="absolute inset-0 bg-gray-100/60 pointer-events-none z-20 flex items-center justify-center">
+                              <span className="text-[8px] text-gray-400 font-semibold -rotate-12 select-none whitespace-nowrap">
+                                {new Date(fk + 'T12:00:00').getDay() === 0 ? 'Domingo' : 'Feriado'}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

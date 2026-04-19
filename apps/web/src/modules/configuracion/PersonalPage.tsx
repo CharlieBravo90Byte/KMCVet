@@ -171,7 +171,8 @@ function TabPersonal({ staff, setStaff }: { staff: StaffMember[]; setStaff: Reac
   const [showForm, setShowForm]   = useState(false);
   const [editItem, setEditItem]   = useState<StaffMember | null>(null);
   const [loading, setLoading]     = useState(true);
-  const [filtro, setFiltro]       = useState<'todos' | string>('todos');
+  const [search, setSearch]       = useState('');
+  const [filtroCargo, setFiltroCargo] = useState<'todos' | string>('todos');
 
   useEffect(() => {
     apiClient.get('/personal')
@@ -196,65 +197,163 @@ function TabPersonal({ staff, setStaff }: { staff: StaffMember[]; setStaff: Reac
   }
 
   const cargosPresentes = [...new Set(staff.map(s => s.cargo))];
-  const filtrados = filtro === 'todos' ? staff : staff.filter(s => s.cargo === filtro);
-  const activos   = filtrados.filter(s => s.activo);
-  const inactivos = filtrados.filter(s => !s.activo);
+
+  const filtrados = staff.filter(s => {
+    const q = search.toLowerCase();
+    const matchQ = !q || s.nombre.toLowerCase().includes(q)
+      || (s.email ?? '').toLowerCase().includes(q)
+      || (s.telefono ?? '').toLowerCase().includes(q)
+      || (CARGOS[s.cargo] ?? s.cargo).toLowerCase().includes(q);
+    const matchC = filtroCargo === 'todos' || s.cargo === filtroCargo;
+    return matchQ && matchC;
+  });
+
+  const cargoCounts = staff.reduce<Record<string, number>>((acc, s) => {
+    acc[s.cargo] = (acc[s.cargo] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex flex-wrap gap-1.5">
-          <button onClick={() => setFiltro('todos')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filtro === 'todos' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            Todos ({staff.length})
-          </button>
-          {cargosPresentes.map(c => (
-            <button key={c} onClick={() => setFiltro(c)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filtro === c ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {CARGOS[c] ?? c}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => { setEditItem(null); setShowForm(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-          Agregar personal
+      {/* Chips de cargo */}
+      <div className="flex flex-wrap gap-1.5">
+        <button onClick={() => setFiltroCargo('todos')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filtroCargo === 'todos' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          Todos ({staff.length})
         </button>
+        {cargosPresentes.map(c => (
+          <button key={c} onClick={() => setFiltroCargo(c)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filtroCargo === c ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {CARGOS[c] ?? c} ({cargoCounts[c] ?? 0})
+          </button>
+        ))}
       </div>
 
-      {loading ? (
-        <div className="py-12 text-center text-gray-400 text-sm">Cargando...</div>
-      ) : filtrados.length === 0 ? (
-        <div className="py-16 text-center">
-          <svg className="w-10 h-10 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-          <p className="text-sm text-gray-400">Sin personal registrado</p>
-          <button onClick={() => { setEditItem(null); setShowForm(true); }}
-            className="mt-3 text-sm text-emerald-600 hover:text-emerald-700 font-medium">+ Agregar el primero</button>
+      {/* Tabla */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+
+        {/* Barra superior */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+          <h2 className="font-semibold text-gray-700 text-sm flex-shrink-0">
+            {filtroCargo === 'todos' ? 'Todo el personal' : (CARGOS[filtroCargo] ?? filtroCargo)}
+            {' '}<span className="text-gray-400 font-normal text-xs">({filtrados.length})</span>
+          </h2>
+          <div className="flex items-center gap-2 flex-1 justify-end">
+            <div className="relative max-w-xs w-full">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por nombre, cargo…"
+                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+            </div>
+            <button
+              onClick={() => { setEditItem(null); setShowForm(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Agregar personal
+            </button>
+          </div>
         </div>
-      ) : (
-        <>
-          {activos.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Activos · {activos.length}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {activos.map(s => <TarjetaPersonal key={s.id} s={s} onEdit={() => { setEditItem(s); setShowForm(true); }} onToggle={() => toggleActivo(s)} onDelete={() => eliminar(s.id)} />)}
-              </div>
+
+        {/* Encabezado columnas */}
+        <div className="grid grid-cols-12 gap-3 px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <span className="col-span-4">Nombre</span>
+          <span className="col-span-2">Cargo</span>
+          <span className="col-span-2">Email</span>
+          <span className="col-span-2">Teléfono</span>
+          <span className="col-span-1 text-center">Estado</span>
+          <span className="col-span-1 text-right">Acc.</span>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-14">
+            <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            <span className="ml-3 text-sm text-gray-400">Cargando personal…</span>
+          </div>
+        ) : filtrados.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-14 text-center">
+            <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mb-3">
+              <svg className="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
             </div>
-          )}
-          {inactivos.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 mt-4">Inactivos · {inactivos.length}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 opacity-60">
-                {inactivos.map(s => <TarjetaPersonal key={s.id} s={s} onEdit={() => { setEditItem(s); setShowForm(true); }} onToggle={() => toggleActivo(s)} onDelete={() => eliminar(s.id)} />)}
+            <p className="font-semibold text-gray-600 text-sm">
+              {search || filtroCargo !== 'todos' ? 'Sin resultados' : 'Sin personal registrado'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {search || filtroCargo !== 'todos' ? 'Cambia los filtros' : 'Agrega el primer miembro con el botón superior'}
+            </p>
+          </div>
+        ) : (
+          filtrados.map(s => {
+            const colors = STAFF_COLORS[s.color] ?? STAFF_COLORS.emerald;
+            const iniciales = s.nombre.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+            return (
+              <div key={s.id} className={`grid grid-cols-12 gap-3 px-5 py-3.5 items-center border-b border-gray-50 hover:bg-gray-50/60 transition-colors ${!s.activo ? 'opacity-60' : ''}`}>
+                {/* Nombre */}
+                <div className="col-span-4 flex items-center gap-3 min-w-0">
+                  <div className={`w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center flex-shrink-0`}>
+                    <span className={`text-xs font-bold ${colors.text}`}>{iniciales}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{s.nombre}</p>
+                    {s.notas && <p className="text-[10px] text-gray-400 truncate italic">{s.notas}</p>}
+                  </div>
+                </div>
+                {/* Cargo */}
+                <div className="col-span-2">
+                  <span className={`inline-flex items-center text-xs font-medium border px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} border-transparent`}>
+                    {CARGOS[s.cargo] ?? s.cargo}
+                  </span>
+                </div>
+                {/* Email */}
+                <div className="col-span-2 min-w-0">
+                  <p className="text-xs text-gray-500 truncate">{s.email ?? '—'}</p>
+                </div>
+                {/* Teléfono */}
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-500">{s.telefono ?? '—'}</p>
+                </div>
+                {/* Estado */}
+                <div className="col-span-1 flex justify-center">
+                  {s.activo
+                    ? <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">Activo</span>
+                    : <span className="text-[10px] font-medium text-gray-400 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">Inactivo</span>
+                  }
+                </div>
+                {/* Acciones */}
+                <div className="col-span-1 flex justify-end items-center gap-0.5">
+                  <button onClick={() => { setEditItem(s); setShowForm(true); }}
+                    title="Editar"
+                    className="p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  </button>
+                  <button onClick={() => toggleActivo(s)}
+                    title={s.activo ? 'Desactivar' : 'Activar'}
+                    className={`p-1.5 rounded-lg transition-colors ${s.activo ? 'text-gray-400 hover:text-amber-600 hover:bg-amber-50' : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'}`}>
+                    {s.activo
+                      ? <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                      : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    }
+                  </button>
+                  <button onClick={() => eliminar(s.id)}
+                    title="Eliminar"
+                    className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </>
-      )}
+            );
+          })
+        )}
+
+        {/* Footer tabla */}
+        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <p className="text-xs text-gray-400">{filtrados.length} persona(s) mostrada(s)</p>
+          <p className="text-xs text-gray-400">{staff.filter(s => s.activo).length} activos · {staff.filter(s => !s.activo).length} inactivos</p>
+        </div>
+      </div>
 
       {showForm && (
         <ModalPersonal
@@ -266,49 +365,6 @@ function TabPersonal({ staff, setStaff }: { staff: StaffMember[]; setStaff: Reac
           }}
         />
       )}
-    </div>
-  );
-}
-
-function TarjetaPersonal({ s, onEdit, onToggle, onDelete }: {
-  s: StaffMember;
-  onEdit: () => void;
-  onToggle: () => void;
-  onDelete: () => void;
-}) {
-  const colors = STAFF_COLORS[s.color] ?? STAFF_COLORS.emerald;
-  return (
-    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-start gap-3 ${!s.activo ? 'opacity-70' : ''}`}>
-      <div className={`w-10 h-10 rounded-xl ${colors.bg} flex items-center justify-center flex-shrink-0`}>
-        <span className={`text-sm font-bold ${colors.text}`}>{s.nombre.split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}</span>
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-gray-800 truncate">{s.nombre}</p>
-          {!s.activo && <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">Inactivo</span>}
-        </div>
-        <p className="text-xs text-gray-500 mt-0.5">{CARGOS[s.cargo] ?? s.cargo}</p>
-        {s.telefono && <p className="text-xs text-gray-400 mt-0.5">{s.telefono}</p>}
-        {s.email    && <p className="text-xs text-gray-400">{s.email}</p>}
-        {s.notas    && <p className="text-xs text-gray-400 italic mt-0.5 truncate">{s.notas}</p>}
-      </div>
-      <div className="flex flex-col gap-1 flex-shrink-0">
-        <button onClick={onEdit} title="Editar"
-          className="w-7 h-7 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.071-6.071a2 2 0 012.829 2.829L11.828 13.9a4 4 0 01-1.414.93l-2.828.707.707-2.828A4 4 0 019 11z"/></svg>
-        </button>
-        <button onClick={onToggle} title={s.activo ? 'Desactivar' : 'Activar'}
-          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${s.activo ? 'text-gray-400 hover:text-amber-600 hover:bg-amber-50' : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'}`}>
-          {s.activo
-            ? <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-            : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
-          }
-        </button>
-        <button onClick={onDelete} title="Eliminar"
-          className="w-7 h-7 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </button>
-      </div>
     </div>
   );
 }

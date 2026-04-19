@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{TIPO_DOCUMENTO}} N° {{FOLIO}} — KMCVet</title>
+  <style>
+    /* ===== RESET ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 13px;
+      color: #111;
+      background: #f5f5f5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ===== PÁGINA ===== */
+    .pagina {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 20px auto;
+      background: #fff;
+      padding: 18mm 20mm;
+      box-shadow: 0 4px 24px rgba(0,0,0,.12);
+    }
+    @media print {
+      body { background: white; }
+      .pagina { margin: 0; box-shadow: none; padding: 14mm 16mm; }
+      .no-print { display: none !important; }
+      @page { size: A4 portrait; margin: 0; }
+    }
+
+    /* ===== BANNER SUPERIOR (opcional) ===== */
+    /* Sube una imagen aquí en Configuración → Plantilla de documentos */
+    .banner {
+      width: 100%;
+      margin-bottom: 16px;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .banner img {
+      width: 100%;
+      max-height: 120px;
+      object-fit: cover;
+      object-position: top;
+      display: block;
+    }
+    /* Si no hay imagen se puede usar este banner de color */
+    .banner-color {
+      background: linear-gradient(135deg, #064e3b 0%, #065f46 60%, #10b981 100%);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .banner-color .clinic-name-banner {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+    .banner-color .clinic-sub-banner {
+      font-size: 11px;
+      color: #a7f3d0;
+      margin-top: 2px;
+    }
+
+    /* ===== ENCABEZADO ===== */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 14px;
+      border-bottom: 3px solid #111;
+      margin-bottom: 14px;
+    }
+    .clinic-info { display: flex; align-items: center; gap: 14px; }
+    .clinic-logo {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .clinic-name  { font-size: 18px; font-weight: 800; color: #111; }
+    .clinic-sub   { font-size: 10px; color: #555; margin-top: 3px; }
+
+    /* Caja de folio */
+    .folio-box {
+      border: 2.5px solid #111;
+      padding: 10px 18px;
+      text-align: center;
+      border-radius: 6px;
+      min-width: 160px;
+    }
+    .folio-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      color: #111;
+      text-transform: uppercase;
+    }
+    .folio-num   { font-size: 22px; font-weight: 800; color: #111; margin-top: 2px; }
+    .folio-fecha { font-size: 9px; color: #777; margin-top: 4px; }
+
+    /* ===== META ROW ===== */
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 12px;
+      background: #f9fafb;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+      margin-bottom: 16px;
+      font-size: 11px;
+      color: #555;
+    }
+    .meta-row strong { color: #111; }
+
+    /* ===== TABLA DE ÍTEMS ===== */
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    thead tr { background: #111; }
+    th {
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 10px;
+      color: #fff;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 12px;
+      color: #333;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #f9fafb; }
+    .td-right  { text-align: right; }
+    .td-center { text-align: center; }
+    .td-bold   { font-weight: 600; }
+
+    /* ===== TOTALES ===== */
+    .totales-wrap { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+    .totales-box {
+      min-width: 250px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 14px;
+      font-size: 12px;
+      color: #555;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .total-row:last-child { border-bottom: none; }
+    .total-principal {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      background: #111;
+      color: #fff;
+    }
+    .total-principal .label { font-size: 14px; font-weight: 700; }
+    .total-principal .valor { font-size: 20px; font-weight: 800; }
+
+    /* ===== NOTAS ===== */
+    .notas-box {
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+    .notas-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 4px;
+    }
+
+    /* ===== ALERTA (nota de crédito / sin folio) ===== */
+    .alerta-box {
+      padding: 8px 12px;
+      background: #fff7ed;
+      border: 1px solid #fdba74;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #92400e;
+      margin-bottom: 12px;
+    }
+
+    /* ===== FIRMA ===== */
+    .firma-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 32px;
+      gap: 32px;
+    }
+    .firma-box { flex: 1; text-align: center; }
+    .firma-linea {
+      border-top: 1px solid #ccc;
+      margin-bottom: 6px;
+      padding-top: 6px;
+      font-size: 10px;
+      color: #777;
+    }
+    .firma-label { font-size: 9px; color: #aaa; }
+
+    /* ===== PIE DE PÁGINA ===== */
+    .footer {
+      margin-top: 28px;
+      text-align: center;
+      border-top: 1px dashed #ccc;
+      padding-top: 12px;
+      font-size: 9px;
+      color: #aaa;
+    }
+
+    /* ===== BOTÓN IMPRIMIR (no imprime) ===== */
+    .no-print {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #065f46;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,.2);
+      transition: background .2s;
+    }
+    .no-print:hover { background: #047857; }
+  </style>
+</head>
+<body>
+
+  <div class="pagina">
+
+    <!-- == BANNER (reemplazar con imagen subida en Configuración) == -->
+    <div class="banner-color">
+      <!-- Ejemplo con imagen: -->
+      <!-- <img src="/uploads/logos/mi-banner.jpg" alt="banner" /> -->
+      <!-- Ejemplo con color sólido (quitar si se usa imagen): -->
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="5.5" cy="6.5" rx="2" ry="2.5"/>
+        <ellipse cx="10" cy="4.5" rx="2" ry="2.5"/>
+        <ellipse cx="14" cy="4.5" rx="2" ry="2.5"/>
+        <ellipse cx="18.5" cy="6.5" rx="2" ry="2.5"/>
+        <path d="M12 9.5c-3.8 0-7 2.3-7 5.8 0 2.3 1.8 4.2 4 4.2h6c2.2 0 4-1.9 4-4.2 0-3.5-3.2-5.8-7-5.8z"/>
+      </svg>
+      <div>
+        <div class="clinic-name-banner">{{NOMBRE_CLINICA}}</div>
+        <div class="clinic-sub-banner">{{ESLOGAN_CLINICA}}</div>
+      </div>
+    </div>
+
+    <!-- == ALERTA (se rellena solo si hay alerta activa) == -->
+    {{ALERTA_HTML}}
+
+    <!-- == ENCABEZADO == -->
+    <div class="header">
+      <div class="clinic-info">
+        {{LOGO_HTML}}
+        <div>
+          <div class="clinic-name">{{NOMBRE_CLINICA}}</div>
+          {{EMAIL_HTML}}
+          {{TELEFONO_HTML}}
+        </div>
+      </div>
+
+      <div class="folio-box">
+        <div class="folio-label">{{TIPO_DOCUMENTO}}</div>
+        <div class="folio-num">N° {{FOLIO}}</div>
+        <div class="folio-fecha">{{FECHA}}</div>
+      </div>
+    </div>
+
+    <!-- == META DATOS == -->
+    <div class="meta-row">
+      <span>Fecha: <strong>{{FECHA}}</strong></span>
+      <span>Atendido por: <strong>{{ATENDIDO_POR}}</strong></span>
+      {{RUT_HTML}}
+    </div>
+
+    <!-- == ÍTEMS == -->
+    <table>
+      <thead>
+        <tr>
+          <th style="width:80px;">Tipo</th>
+          <th>Descripción</th>
+          <th class="td-center" style="width:70px;">Cant.</th>
+          <th class="td-right" style="width:110px;">P. Unitario</th>
+          <th class="td-right" style="width:110px;">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ITEMS_HTML}}
+      </tbody>
+    </table>
+
+    <!-- == TOTALES == -->
+    <div class="totales-wrap">
+      <div class="totales-box">
+        <div class="total-row">
+          <span>Neto (ref.)</span>
+          <span>{{NETO}}</span>
+        </div>
+        <div class="total-row">
+          <span>IVA 19% (ref.)</span>
+          <span>{{IVA}}</span>
+        </div>
+        <div class="total-principal">
+          <span class="label">TOTAL</span>
+          <span class="valor">{{TOTAL}}</span>
+        </div>
+      </div>
+    </div>
+
+    {{NOTAS_HTML}}
+
+    <!-- == FIRMAS (opcional, quitar si no se usa) == -->
+    <!--
+    <div class="firma-row">
+      <div class="firma-box">
+        <div class="firma-linea">_____________________________</div>
+        <div class="firma-label">Firma Veterinario Responsable</div>
+      </div>
+      <div class="firma-box">
+        <div class="firma-linea">_____________________________</div>
+        <div class="firma-label">Firma / Timbre Establecimiento</div>
+      </div>
+    </div>
+    -->
+
+    <!-- == PIE == -->
+    <div class="footer">
+      Documento generado por KMCVet &mdash; Gracias por su preferencia
+    </div>
+
+  </div>
+
+  <!-- Botón de impresión (no aparece al imprimir) -->
+  <button class="no-print" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+
+</body>
+</html>

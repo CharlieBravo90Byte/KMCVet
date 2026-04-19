@@ -62,6 +62,13 @@ function IconPersonal() {
     </svg>
   );
 }
+function IconHospital() {
+  return (
+    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+    </svg>
+  );
+}
 
 const navGroups = [
   {
@@ -145,8 +152,8 @@ export function AppLayout() {
             </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-base leading-tight tracking-wide truncate">{clinicaNombre}</p>
-                <p className="text-xs text-green-300 leading-tight">Gestión Veterinaria</p>
+                <p className="font-extrabold text-lg leading-tight tracking-wide truncate text-emerald-300">KMCVet</p>
+                <p className="text-xs text-green-300 leading-tight truncate">{clinicaNombre}</p>
               </div>
             )}
             {!collapsed && (
@@ -209,6 +216,9 @@ export function AppLayout() {
             <IconLogout />
             {!collapsed && 'Cerrar sesión'}
           </button>
+          {!collapsed && (
+            <p className="text-center text-[10px] text-green-700 mt-2 select-none">v1.0.1</p>
+          )}
           {collapsed && (
             <button onClick={() => setCollapsed(false)} title="Expandir menú"
               className="w-full flex items-center justify-center py-2 mt-1 text-green-400 hover:text-white rounded-lg hover:bg-green-800 transition-colors">
@@ -224,7 +234,7 @@ export function AppLayout() {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top bar */}
         <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0 shadow-sm">
-          <p className="text-xs text-gray-400 font-medium">{clinicaNombre}</p>
+          <p className="text-xs text-gray-500 font-medium truncate">{clinicaNombre}</p>
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
             Sistema activo

@@ -1,24 +1,41 @@
-﻿import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../shared/lib/api';
 
-// â”€â”€â”€ Constantes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Constantes ---
 const SLUG        = 'demo';
 const HORA_INICIO = 9 * 60;
 const HORA_FIN    = 21 * 60;
-const DIAS_ES     = ['Dom', 'Lun', 'Mar', 'MiÃ©', 'Jue', 'Vie', 'SÃ¡b'];
+const SLOT_PX     = 64;
+const pxMin       = SLOT_PX / 60;
+const horas       = Array.from({ length: (HORA_FIN - HORA_INICIO) / 60 }, (_, i) => HORA_INICIO / 60 + i);
+const gridH       = horas.length * SLOT_PX;
+const DIAS_ES     = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MESES_ES    = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
+// Feriados Chile — domingos siempre bloqueados por código
+const FERIADOS_CL = new Set([
+  '2026-01-01','2026-04-02','2026-04-03','2026-05-01','2026-05-21',
+  '2026-06-29','2026-07-16','2026-08-15','2026-09-18','2026-09-19',
+  '2026-10-12','2026-10-31','2026-11-01','2026-12-08','2026-12-25',
+  '2027-01-01','2027-04-01','2027-04-02','2027-05-01','2027-05-21',
+  '2027-06-29','2027-07-16','2027-08-15','2027-09-18','2027-09-19',
+  '2027-10-12','2027-11-01','2027-12-08','2027-12-25',
+]);
+function isDiaNoHabil(fecha: string): boolean {
+  return new Date(fecha + 'T12:00:00').getDay() === 0 || FERIADOS_CL.has(fecha);
+}
+
 const PALETTE = [
-  { color: 'bg-emerald-500', colorLight: 'bg-emerald-50', colorText: 'text-emerald-700', border: 'border-emerald-300' },
-  { color: 'bg-teal-500',    colorLight: 'bg-teal-50',    colorText: 'text-teal-700',    border: 'border-teal-300'    },
-  { color: 'bg-cyan-600',    colorLight: 'bg-cyan-50',    colorText: 'text-cyan-700',    border: 'border-cyan-300'    },
-  { color: 'bg-blue-500',    colorLight: 'bg-blue-50',    colorText: 'text-blue-700',    border: 'border-blue-300'    },
-  { color: 'bg-violet-500',  colorLight: 'bg-violet-50',  colorText: 'text-violet-700',  border: 'border-violet-300'  },
+  { color: 'bg-emerald-500', colorLight: 'bg-emerald-50', colorText: 'text-emerald-700', border: 'border-emerald-300', hoverBg: 'hover:bg-emerald-100' },
+  { color: 'bg-teal-500',    colorLight: 'bg-teal-50',    colorText: 'text-teal-700',    border: 'border-teal-300',    hoverBg: 'hover:bg-teal-100'    },
+  { color: 'bg-cyan-600',    colorLight: 'bg-cyan-50',    colorText: 'text-cyan-700',    border: 'border-cyan-300',    hoverBg: 'hover:bg-cyan-100'    },
+  { color: 'bg-blue-500',    colorLight: 'bg-blue-50',    colorText: 'text-blue-700',    border: 'border-blue-300',    hoverBg: 'hover:bg-blue-100'    },
+  { color: 'bg-violet-500',  colorLight: 'bg-violet-50',  colorText: 'text-violet-700',  border: 'border-violet-300',  hoverBg: 'hover:bg-violet-100'  },
 ];
 
 type Duracion = 30 | 60;
-interface Doctor { id: string; nombre: string; color: string; colorLight: string; colorText: string; border: string; }
+interface Doctor { id: string; nombre: string; color: string; colorLight: string; colorText: string; border: string; hoverBg: string; }
 interface Motivo  { id: string; label: string; }
 interface CitaOcupada { doctorId: string; fecha: string; hora: number; duracion: number; }
 interface ClinicaInfo { nombre: string; logoUrl?: string | null; telefonos?: string | null; }
@@ -39,9 +56,8 @@ function offsetToHora(offset: number) {
 function isOcupado(ocupadas: CitaOcupada[], docId: string, fecha: string, hora: number, dur: number) {
   return ocupadas.some(c => c.doctorId === docId && c.fecha === fecha && hora < c.hora + c.duracion && hora + dur > c.hora);
 }
-const HORAS = Array.from({ length: (HORA_FIN - HORA_INICIO) / 60 }, (_, i) => i * 60);
 
-// â”€â”€â”€ Modal de reserva (formulario + confirmaciÃ³n) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Modal de reserva ---
 function ModalReserva({
   doctor, fecha, hora, motivos, ocupadas, clinicaTel,
   onClose, onSuccess,
@@ -92,14 +108,13 @@ function ModalReserva({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[94vh] overflow-hidden">
-        {/* Header */}
         <div className={`flex items-center justify-between px-6 py-4 ${doctor.colorLight} border-b ${doctor.border} flex-shrink-0`}>
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <span className={`w-3 h-3 rounded-full ${doctor.color}`} />
-              <span className={`font-bold text-base ${doctor.colorText}`}>{doctor.nombre}</span>
+              <span className={`font-bold text-base ${doctor.colorText}`}>Dr. {doctor.nombre}</span>
             </div>
-            <p className="text-xs text-gray-500">{diaLbl} Â· {offsetToHora(hora)}</p>
+            <p className="text-xs text-gray-500">{diaLbl} · {offsetToHora(hora)}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -109,7 +124,6 @@ function ModalReserva({
         </div>
 
         {confirmado ? (
-          /* â”€â”€ ConfirmaciÃ³n â”€â”€ */
           <div className="p-6 space-y-4 text-center">
             <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
               <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -117,16 +131,16 @@ function ModalReserva({
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-800">Â¡Hora reservada!</h3>
-              <p className="text-sm text-gray-500 mt-1">{diaLbl} a las {offsetToHora(hora)} â€” {duracion} min</p>
-              <p className="text-sm text-gray-700 mt-0.5 font-medium">con {doctor.nombre}</p>
-              <p className="text-sm text-gray-500 mt-0.5">{mascota} Â· {propiet}</p>
+              <h3 className="text-lg font-bold text-gray-800">¡Hora reservada!</h3>
+              <p className="text-sm text-gray-500 mt-1">{diaLbl} a las {offsetToHora(hora)} – {duracion} min</p>
+              <p className="text-sm text-gray-700 mt-0.5 font-medium">con Dr. {doctor.nombre}</p>
+              <p className="text-sm text-gray-500 mt-0.5">{mascota} · {propiet}</p>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1.5">
-              <p className="text-xs font-semibold text-amber-800">Â¿Necesitas cancelar o modificar?</p>
+              <p className="text-xs font-semibold text-amber-800">¿Necesitas cancelar o modificar?</p>
               <p className="text-xs text-amber-700">
-                Las horas solo pueden cancelarse contactando directamente a la clÃ­nica.
-                La hora permanecerÃ¡ tomada hasta que el equipo la libere.
+                Las horas solo pueden cancelarse contactando directamente a la clínica.
+                La hora permanecerá tomada hasta que el equipo la libere.
               </p>
               {waLink
                 ? <a href={waLink} target="_blank" rel="noopener noreferrer"
@@ -137,7 +151,7 @@ function ModalReserva({
                     </svg>
                     Contactar por WhatsApp
                   </a>
-                : clinicaTel && <p className="text-xs text-amber-700 font-medium mt-1">ðŸ“ž {clinicaTel}</p>
+                : clinicaTel && <p className="text-xs text-amber-700 font-medium mt-1">📞 {clinicaTel}</p>
               }
             </div>
             <button onClick={onClose}
@@ -146,11 +160,9 @@ function ModalReserva({
             </button>
           </div>
         ) : (
-          /* â”€â”€ Formulario â”€â”€ */
           <div className="p-5 space-y-4 overflow-y-auto flex-1">
-            {/* DuraciÃ³n */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">DuraciÃ³n de la consulta</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Duración de la consulta</label>
               <div className="flex gap-2">
                 {([30, 60] as Duracion[]).map(d => (
                   <button key={d} onClick={() => setDuracion(d)} disabled={!durOk(d)}
@@ -162,7 +174,6 @@ function ModalReserva({
                 ))}
               </div>
             </div>
-            {/* Motivo */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Motivo de consulta</label>
               <div className="grid grid-cols-2 gap-1.5">
@@ -183,23 +194,20 @@ function ModalReserva({
                   className="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
               )}
             </div>
-            {/* Mascota */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Nombre de la mascota <span className="text-red-400">*</span></label>
               <input type="text" value={mascota} onChange={e => setMascota(e.target.value)}
-                placeholder="Ej: Max, Luna, Pelusaâ€¦"
+                placeholder="Ej: Max, Luna, Pelusa…"
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             </div>
-            {/* Propietario */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Nombre del tutor / propietario <span className="text-red-400">*</span></label>
               <input type="text" value={propiet} onChange={e => setPropiet(e.target.value)}
                 placeholder="Tu nombre completo"
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             </div>
-            {/* TelÃ©fono */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">TelÃ©fono de contacto <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Teléfono de contacto <span className="text-gray-400 font-normal">(opcional)</span></label>
               <input type="tel" value={telefono} onChange={e => setTelefono(e.target.value)}
                 placeholder="+56 9 1234 5678"
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
@@ -207,7 +215,7 @@ function ModalReserva({
             {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <button onClick={confirmar} disabled={saving || !canSave}
               className={`w-full py-3 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-40 ${doctor.color} hover:opacity-90`}>
-              {saving ? 'Reservandoâ€¦' : 'Confirmar reserva'}
+              {saving ? 'Reservando…' : 'Confirmar reserva'}
             </button>
           </div>
         )}
@@ -216,7 +224,7 @@ function ModalReserva({
   );
 }
 
-// â”€â”€â”€ PÃ¡gina principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Página principal ---
 export function ReservaPublicaPage() {
   const navigate  = useNavigate();
   const hoy       = new Date();
@@ -261,10 +269,10 @@ export function ReservaPublicaPage() {
   }, [navBase, booked]);
 
   if (loading) return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-green-900 to-emerald-700">
+    <div className="flex h-screen items-center justify-center bg-gradient-to-br from-green-900 to-emerald-700">
       <div className="text-center text-white">
         <div className="w-12 h-12 border-4 border-emerald-300 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-green-200">Cargando calendarioâ€¦</p>
+        <p className="text-green-200">Cargando calendario…</p>
       </div>
     </div>
   );
@@ -273,9 +281,9 @@ export function ReservaPublicaPage() {
   const waLink = waNum ? `https://wa.me/${waNum}` : null;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
 
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* Header */}
       <header className="bg-green-900 text-white px-4 py-3 shadow-lg flex-shrink-0">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -293,7 +301,7 @@ export function ReservaPublicaPage() {
             }
             <div>
               <p className="font-bold text-base leading-tight">{clinica.nombre}</p>
-              <p className="text-xs text-green-300 leading-tight">Reserva de hora en lÃ­nea</p>
+              <p className="text-xs text-green-300 leading-tight">Reserva de hora en línea</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -309,7 +317,7 @@ export function ReservaPublicaPage() {
         </div>
       </header>
 
-      {/* â”€â”€ Sub-barra: navegaciÃ³n semana + leyenda doctores â”€â”€ */}
+      {/* Barra de navegación semana */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -318,7 +326,7 @@ export function ReservaPublicaPage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
             </button>
             <span className="text-sm font-semibold text-gray-700 min-w-[170px] text-center">
-              {dias[0].getDate()} {MESES_ES[dias[0].getMonth()]} â€“ {dias[6].getDate()} {MESES_ES[dias[6].getMonth()]} {dias[6].getFullYear()}
+              {dias[0].getDate()} {MESES_ES[dias[0].getMonth()]} – {dias[6].getDate()} {MESES_ES[dias[6].getMonth()]} {dias[6].getFullYear()}
             </span>
             <button onClick={() => setNavBase(b => { const d = new Date(b); d.setDate(d.getDate() + 7); return d; })}
               className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
@@ -333,7 +341,7 @@ export function ReservaPublicaPage() {
             {doctores.map(doc => (
               <div key={doc.id} className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
                 <span className={`w-2.5 h-2.5 rounded-full ${doc.color}`} />
-                {doc.nombre}
+                Dr. {doc.nombre}
               </div>
             ))}
             <div className="flex items-center gap-1.5 text-xs text-gray-400">
@@ -343,89 +351,123 @@ export function ReservaPublicaPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Grid del calendario â”€â”€ */}
+      {/* Grid del calendario */}
       <div className="flex-1 overflow-auto px-4 py-4">
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-auto">
           {N === 0 ? (
             <div className="py-20 text-center text-gray-400 text-sm">No hay doctores disponibles</div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: `64px repeat(${N * 7}, minmax(38px, 1fr))` }}>
+            <div style={{ minWidth: 56 + 7 * Math.max(N * 80, 120) }}>
 
-              {/* â”€â”€ Encabezado â”€â”€ */}
-              <div className="bg-gray-50 border-b border-r border-gray-200 py-3" />
-              {dias.map((d, di) => {
-                const isHoy  = dateKey(d) === hoyStr;
-                const pasado = d < hoyMed;
-                return doctores.map((doc, doci) => (
-                  <div key={`hdr-${di}-${doci}`}
-                    className={`border-b border-r border-gray-100 py-2 px-0.5 text-center ${
-                      doci === 0 ? 'border-l border-gray-200' : ''
-                    } ${isHoy ? 'bg-emerald-50' : pasado ? 'bg-gray-50/60' : 'bg-white'}`}>
-                    {doci === Math.floor(N / 2)
-                      ? <div className={`text-xs font-bold mb-0.5 ${isHoy ? 'text-emerald-700' : pasado ? 'text-gray-300' : 'text-gray-700'}`}>
+              {/* Encabezado sticky */}
+              <div className="flex sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+                <div className="w-14 flex-shrink-0 border-r border-gray-100" />
+                {dias.map((d, dIdx) => {
+                  const fk = dateKey(d);
+                  const isHoy = fk === hoyStr;
+                  const diaEsPasado = d < hoyMed;
+                  const noHabil = isDiaNoHabil(fk);
+                  return (
+                    <div key={dIdx}
+                      className={`flex-1 flex flex-col border-l border-gray-200${isHoy ? ' bg-emerald-50' : ''}${noHabil ? ' bg-gray-100/60' : ''}`}
+                      style={{ minWidth: Math.max(N * 80, 120) }}>
+                      <div className="text-center py-1.5 border-b border-gray-100">
+                        <p className={`text-[10px] font-bold uppercase ${noHabil ? 'text-gray-300' : diaEsPasado ? 'text-gray-300' : isHoy ? 'text-emerald-700' : 'text-gray-600'}`}>
                           {DIAS_ES[d.getDay()]} {d.getDate()}
-                        </div>
-                      : <div className="h-[18px]" />
-                    }
-                    <div className="flex items-center justify-center gap-0.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${doc.color} ${pasado ? 'opacity-30' : ''}`} />
-                      <span className={`text-[9px] font-medium ${doc.colorText} ${pasado ? 'opacity-30' : ''}`}>
-                        {doc.nombre.split(' ')[0].slice(0, 5)}
-                      </span>
+                          {noHabil && <span className="block text-[8px] normal-case font-normal">{new Date(fk + 'T12:00:00').getDay() === 0 ? 'Cerrado' : 'Feriado'}</span>}
+                        </p>
+                      </div>
+                      <div className="flex divide-x divide-gray-100">
+                        {doctores.map(doc => (
+                          <div key={doc.id} className={`flex-1 text-center py-1 ${doc.colorLight}${diaEsPasado || noHabil ? ' opacity-40' : ''}`}>
+                            <span className={`text-[9px] font-bold uppercase ${doc.colorText}`}>Dr. {doc.nombre.split(' ')[0]}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ));
-              })}
+                  );
+                })}
+              </div>
 
-              {/* â”€â”€ Filas de horas â”€â”€ */}
-              {HORAS.map(hora => (
-                <Fragment key={hora}>
-                  <div className="border-b border-r border-gray-100 bg-gray-50 flex items-center justify-end pr-2 py-1.5">
-                    <span className="text-[10px] text-gray-400 font-mono">{offsetToHora(hora)}</span>
-                  </div>
-                  {dias.flatMap((d, di) => {
-                    const fecha  = dateKey(d);
-                    const pasado = new Date(`${fecha}T${offsetToHora(hora)}:00`) < new Date();
-                    return doctores.map((doc, doci) => {
-                      const ocup = isOcupado(ocupadas, doc.id, fecha, hora, 30);
-                      return (
-                        <button
-                          key={`${di}-${doci}-${hora}`}
-                          disabled={pasado || ocup}
-                          onClick={() => setModalSlot({ doc, fecha, hora })}
-                          title={pasado ? 'Hora pasada' : ocup ? `Ocupado â€” ${doc.nombre}` : `Reservar con ${doc.nombre}`}
-                          className={[
-                            'border-b border-r border-gray-100 h-10 transition-all text-[10px] font-medium',
-                            doci === 0 ? 'border-l border-gray-200' : '',
-                            pasado ? 'bg-gray-50 cursor-not-allowed' :
-                            ocup   ? `${doc.colorLight} text-red-400 cursor-not-allowed` :
-                                     `${doc.colorLight} ${doc.colorText} hover:opacity-60 cursor-pointer`,
-                          ].join(' ')}
-                        >
-                          {ocup && <span className="opacity-50">Ã—</span>}
-                        </button>
-                      );
-                    });
-                  })}
-                </Fragment>
-              ))}
+              {/* Grid de tiempo */}
+              <div className="flex">
+                {/* Columna de horas */}
+                <div className="w-14 flex-shrink-0 border-r border-gray-100">
+                  {horas.map(h => (
+                    <div key={h} style={{ height: SLOT_PX }} className="relative border-t border-gray-100">
+                      <span className="absolute -top-2.5 right-2 text-[10px] text-gray-400">{String(h).padStart(2, '0')}:00</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Columnas de días */}
+                {dias.map((d, dIdx) => {
+                  const fk = dateKey(d);
+                  const diaEsPasado = d < hoyMed;
+                  const noHabil = isDiaNoHabil(fk);
+                  return (
+                    <div key={dIdx} className="flex flex-1 border-l border-gray-200"
+                      style={{ height: gridH, minWidth: Math.max(N * 80, 120) }}>
+                      {doctores.map((doc, docIdx) => {
+                        const ocupadasDoc = ocupadas.filter(c => c.doctorId === doc.id && c.fecha === fk);
+                        return (
+                          <div key={doc.id}
+                            className={`relative flex-1${docIdx > 0 ? ' border-l border-gray-100' : ''}`}
+                            style={{ height: gridH }}>
+                            {horas.map((_, hi) => (
+                              <div key={hi} className="absolute w-full border-t border-gray-100" style={{ top: hi * SLOT_PX }} />
+                            ))}
+                            {Array.from({ length: (HORA_FIN - HORA_INICIO) / 15 }, (_, si) => si * 15).map(minOff => {
+                              const slotEsPasado = diaEsPasado || noHabil || new Date(`${fk}T${offsetToHora(minOff)}:00`) <= new Date();
+                              const ocup = !noHabil && isOcupado(ocupadas, doc.id, fk, minOff, 15);
+                              return (
+                                <div key={minOff}
+                                  className={`absolute w-full transition-colors ${slotEsPasado || ocup ? 'cursor-default' : `cursor-pointer ${doc.hoverBg}`}`}
+                                  style={{ top: minOff * pxMin, height: 15 * pxMin }}
+                                  onClick={() => !slotEsPasado && !ocup && setModalSlot({ doc, fecha: fk, hora: minOff })}
+                                />
+                              );
+                            })}
+                            {(diaEsPasado || noHabil) && (
+                              <div className="absolute inset-0 bg-gray-100/60 pointer-events-none flex items-center justify-center">
+                                {noHabil && !diaEsPasado && (
+                                  <span className="text-[8px] text-gray-400 font-semibold -rotate-12 select-none whitespace-nowrap">
+                                    {new Date(fk + 'T12:00:00').getDay() === 0 ? 'Domingo' : 'Feriado'}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {ocupadasDoc.map((cita, ci) => (
+                              <div key={ci}
+                                className={`absolute inset-x-0.5 rounded-sm ${doc.colorLight} ${doc.colorText} border ${doc.border} overflow-hidden z-10`}
+                                style={{ top: cita.hora * pxMin + 1, height: Math.max(cita.duracion * pxMin - 2, 14) }}>
+                                <p className="text-[9px] font-medium px-1 pt-0.5 opacity-80">Ocupado</p>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Nota cancelaciÃ³n */}
+        {/* Nota cancelación */}
         <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
           <svg className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
           <p className="text-sm text-amber-800">
-            <strong>Â¿Necesitas cancelar o cambiar tu hora?</strong>
-            {' '}Las reservas solo pueden cancelarse contactando directamente a la clÃ­nica.
+            <strong>¿Necesitas cancelar o cambiar tu hora?</strong>
+            {' '}Las reservas solo pueden cancelarse contactando directamente a la clínica.
             {clinica.telefonos && <span className="ml-1">Tel: <strong>{clinica.telefonos}</strong>.</span>}
             {waLink && (
               <a href={waLink} target="_blank" rel="noopener noreferrer"
                 className="ml-2 inline-flex items-center gap-1 text-green-700 font-semibold hover:text-green-800 underline">
-                Contactar por WhatsApp â†’
+                Contactar por WhatsApp →
               </a>
             )}
             {' '}La hora permanece tomada hasta que el equipo la cancele.
@@ -433,7 +475,6 @@ export function ReservaPublicaPage() {
         </div>
       </div>
 
-      {/* Modal */}
       {modalSlot && (
         <ModalReserva
           doctor={modalSlot.doc}

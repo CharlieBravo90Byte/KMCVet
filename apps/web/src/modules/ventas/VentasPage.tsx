@@ -90,7 +90,7 @@ const LABEL_TIPO: Record<string, string> = {
   nota_credito: 'NOTA DE CRÉDITO',
 };
 
-function generarHtmlBoleta(venta: Venta, clinica: ClinicaInfo): string {
+async function generarHtmlBoleta(venta: Venta, clinica: ClinicaInfo): Promise<string> {
   const fmtNum = (n: number) => n.toLocaleString('es-CL', { minimumFractionDigits: 0 });
   const fmtMon = (n: number) => `$ ${fmtNum(n)}`;
   const fecha  = new Date(venta.fecha).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -114,8 +114,41 @@ function generarHtmlBoleta(venta: Venta, clinica: ClinicaInfo): string {
   const logoHtml = clinica.logoUrl
     ? `<img src="${window.location.origin}${clinica.logoUrl}" style="width:64px;height:64px;object-fit:contain;margin-right:14px;"/>` : '';
 
-  const plantillaHtml = clinica.plantillaBoletaUrl
-    ? `<div class="banner"><img src="${window.location.origin}${clinica.plantillaBoletaUrl}" style="width:100%;max-height:130px;object-fit:cover;object-position:top;display:block;"/></div>` : '';
+  // ── Si hay plantilla HTML, cargarla y reemplazar variables ─────────────
+  const plantillaUrl = clinica.plantillaBoletaUrl;
+  if (plantillaUrl && /\.html?$/i.test(plantillaUrl)) {
+    try {
+      const resp = await fetch(`${window.location.origin}${plantillaUrl}`, { cache: 'no-cache' });
+      if (resp.ok) {
+        let tpl = await resp.text();
+        const vars: Record<string, string> = {
+          NOMBRE_CLINICA:  clinica.nombre,
+          ESLOGAN_CLINICA: '',
+          EMAIL_HTML:      clinica.emailClinica ? `<div class="clinic-sub">Email: ${clinica.emailClinica}</div>` : '',
+          TELEFONO_HTML:   clinica.telefonos    ? `<div class="clinic-sub">Tel: ${clinica.telefonos}</div>`    : '',
+          LOGO_HTML:       logoHtml,
+          TIPO_DOCUMENTO:  tipoLabel,
+          FOLIO:           folioNum,
+          FECHA:           fecha,
+          ATENDIDO_POR:    venta.vendedor,
+          RUT_HTML:        (venta as any).rutCliente ? `<span>RUT: <strong>${(venta as any).rutCliente}</strong></span>` : '',
+          ITEMS_HTML:      itemsHtml,
+          NETO:            fmtMon(neto),
+          IVA:             fmtMon(iva),
+          TOTAL:           fmtMon(venta.total),
+          NOTAS_HTML:      venta.notas ? `<div class="notes"><div class="notes-label">Notas</div><div style="font-size:11px;color:#333;">${venta.notas}</div></div>` : '',
+          ALERTA_HTML:     venta._alerta ? `<div class="alerta-box">⚠ ${venta._alerta}</div>` : '',
+        };
+        for (const [key, value] of Object.entries(vars)) {
+          tpl = tpl.replaceAll(`{{${key}}}`, value);
+        }
+        return tpl;
+      }
+    } catch { /* fallback al HTML inline */ }
+  }
+
+  const plantillaHtml = plantillaUrl && !/\.html?$/i.test(plantillaUrl)
+    ? `<div class="banner"><img src="${window.location.origin}${plantillaUrl}" style="width:100%;max-height:130px;object-fit:cover;object-position:top;display:block;"/></div>` : '';
 
   return `<!DOCTYPE html>
 <html lang="es"><head>
@@ -217,8 +250,8 @@ function ModalBoletaPDF({ venta, clinica, onClose }: { venta: Venta; clinica: Cl
   const folioNum  = venta.numeroDocumento != null ? String(venta.numeroDocumento) : venta.id.toUpperCase().replace(/-/g, '').slice(-8);
   const fecha = new Date(venta.fecha).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  function abrirImpresion() {
-    const html = generarHtmlBoleta(venta, clinica);
+  async function abrirImpresion() {
+    const html = await generarHtmlBoleta(venta, clinica);
     const win = window.open('', '_blank', 'width=860,height=700,scrollbars=yes');
     if (!win) { alert('Permite ventanas emergentes para imprimir la boleta'); return; }
     win.document.write(html);
@@ -664,6 +697,9 @@ export function VentasPage() {
   const [rutCliente, setRutCliente] = useState<string>(() => precarga?.rutPropietario ?? '');
   const [notaCreditoVenta, setNotaCreditoVenta] = useState<Venta | null>(null);
   const [reintentandoId, setReintentandoId] = useState<string | null>(null);
+  const [filtroFecha,   setFiltroFecha]   = useState('');
+  const [filtroDoc,     setFiltroDoc]     = useState('');
+  const [filtroCliente, setFiltroCliente] = useState('');
 
   // ── Warning si hay datos en el formulario al navegar ─────────
   const formaDirty = tab === 'nueva' && (lineas.length > 0 || notas.trim() !== '' || rutCliente.trim() !== '');
@@ -834,6 +870,17 @@ export function VentasPage() {
   // Ocultar optimísticamente la venta que se está reintentando
   const ventasPendientes   = ventas.filter((v) => v.estado === 'PENDIENTE' && v.id !== reintentandoId);
   const ventasCompletadas  = ventas.filter((v) => v.estado !== 'PENDIENTE');
+  const ventasFiltradas    = ventasCompletadas.filter((v) => {
+    if (filtroFecha   && !fmtDate(v.fecha).includes(filtroFecha)) return false;
+    if (filtroDoc     && (v.numeroDocumento == null || !String(v.numeroDocumento).includes(filtroDoc.replace(/\D/g, '')))) return false;
+    if (filtroCliente) {
+      const q = filtroCliente.toLowerCase();
+      const enRut   = (v.rutCliente ?? '').toLowerCase().includes(q);
+      const enNotas = (v.notas ?? '').toLowerCase().includes(q);
+      if (!enRut && !enNotas) return false;
+    }
+    return true;
+  });
 
   function recargarEnNuevoCobro(v: Venta) {
     setReintentandoId(v.id); // marcar el pendiente que se está reintentando
@@ -1162,13 +1209,66 @@ export function VentasPage() {
       ) : (
         /* ── Historial ── */
         <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-4xl mx-auto space-y-4">
+            {/* ── Barra de filtros ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-4">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
+                  <input
+                    type="text" value={filtroFecha} onChange={e => setFiltroFecha(e.target.value)}
+                    placeholder="ej: 19/04"
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400 w-32"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">N° Boleta / Factura</label>
+                  <input
+                    type="text" value={filtroDoc} onChange={e => setFiltroDoc(e.target.value)}
+                    placeholder="ej: 42"
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400 w-28"
+                  />
+                </div>
+                <div className="flex-1 min-w-48">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Cliente / RUT / Notas</label>
+                  <input
+                    type="text" value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}
+                    placeholder="Buscar por RUT o notas..."
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+                {(filtroFecha || filtroDoc || filtroCliente) && (
+                  <button
+                    onClick={() => { setFiltroFecha(''); setFiltroDoc(''); setFiltroCliente(''); }}
+                    className="px-3 py-2 text-sm text-gray-500 hover:text-red-500 border border-gray-200 rounded-lg hover:border-red-200 transition-colors"
+                  >
+                    Limpiar
+                  </button>
+                )}
+                <div className="ml-auto text-xs text-gray-400 self-end pb-2.5">
+                  {(filtroFecha || filtroDoc || filtroCliente)
+                    ? `${ventasFiltradas.length} de ${ventasCompletadas.length} cobros`
+                    : `${ventasCompletadas.length} cobros`
+                  }
+                </div>
+              </div>
+            </div>
+
           {ventasCompletadas.length === 0 ? (
             <div className="text-center pt-16 text-gray-400">
               <svg className="w-10 h-10 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               <p className="text-sm">Sin cobros registrados</p>
             </div>
+          ) : ventasFiltradas.length === 0 ? (
+            <div className="text-center pt-8 text-gray-400">
+              <p className="text-sm">Sin resultados para los filtros aplicados</p>
+              <button onClick={() => { setFiltroFecha(''); setFiltroDoc(''); setFiltroCliente(''); }}
+                className="mt-2 text-sm text-green-600 hover:text-green-700 font-medium">
+                Limpiar filtros
+              </button>
+            </div>
           ) : (
-            <div className="max-w-4xl mx-auto">
+            <div>
               <table className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
@@ -1177,11 +1277,11 @@ export function VentasPage() {
                     <th className="px-2 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendedor</th>
                     <th className="px-2 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Notas</th>
                     <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                    <th className="pr-4 py-3 w-14" />
+                    <th className="pr-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {ventasCompletadas.map((v) => (
+                  {ventasFiltradas.map((v) => (
                     <tr key={v.id} onClick={() => setVentaDetalle(v)} className="hover:bg-green-50 cursor-pointer transition-colors">
                       <td className="pl-5 pr-2 py-3">
                         <div className="text-sm text-gray-600 whitespace-nowrap">{fmtDate(v.fecha)}</div>
@@ -1214,15 +1314,26 @@ export function VentasPage() {
                       <td className="px-2 py-3 text-sm text-gray-400 italic max-w-xs truncate">{v.notas ?? '—'}</td>
                       <td className={`px-5 py-3 text-right text-base font-bold ${v.tipoDoc === 'nota_credito' ? 'text-red-600' : 'text-green-700'}`}>{fmt(v.total)}</td>
                       <td className="pr-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                        {v.tipoDoc !== 'nota_credito' && (
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => setNotaCreditoVenta(v)}
-                            title="Generar Nota de Crédito"
-                            className="text-xs px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors font-medium"
+                            onClick={() => setVentaCompletada(v)}
+                            title="Reimprimir documento"
+                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors font-medium"
                           >
-                            NC
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 9H2v10h20V9h-4M6 9h12m-6 8v-5m0 0l-2 2m2-2l2 2"/>
+                            </svg>
                           </button>
-                        )}
+                          {v.tipoDoc !== 'nota_credito' && (
+                            <button
+                              onClick={() => setNotaCreditoVenta(v)}
+                              title="Generar Nota de Crédito"
+                              className="text-xs px-2 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors font-medium"
+                            >
+                              NC
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1230,6 +1341,7 @@ export function VentasPage() {
               </table>
             </div>
           )}
+          </div>
         </div>
       )}
 
