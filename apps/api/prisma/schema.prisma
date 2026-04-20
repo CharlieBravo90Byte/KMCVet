@@ -15,7 +15,16 @@ datasource db {
 model Tenant {
   id             String   @id @default(uuid())
   slug           String   @unique
-  nombre         String
+  nombre         String                      // nombre visible / fantasía de la clínica
+  nombreEmpresa  String?                     // razón social (puede diferir)
+  rutEmpresa     String?                     // RUT tributario ej: 76.123.456-7
+  giroClinica    String?                     // giro SII ej: Servicios Veterinarios
+  direccionClinica String?
+  comunaClinica  String?
+  ciudadClinica  String?
+  eslogan        String?                     // tagline opcional
+  resolucionSII  String?                     // ej: Res. Ex. SII N°XX Año YYYY
+  dteTipo        String?  @default("39")     // 39=boleta afecta | 41=boleta exenta
   logoUrl              String?
   plantillaBoletaUrl   String?
   plantillaFacturaUrl  String?
@@ -44,6 +53,9 @@ model Tenant {
   folios      FolioRange[]
   staff       Staff[]
   turnos      Turno[]
+  cajaCierres CajaCierre[]
+  metas       Meta[]
+  hospedajes  Hospedaje[]
 
   @@map("tenants")
 }
@@ -66,6 +78,7 @@ model User {
   consultas         Consultation[] @relation("VetConsultations")
   movimientosStock  StockMovement[]
   ventas            Sale[]
+  cajaCierres       CajaCierre[]
 
   @@unique([tenantId, email])
   @@map("users")
@@ -92,6 +105,7 @@ model Owner {
 
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   mascotas Pet[]
+  hospedajes Hospedaje[]
 
   @@unique([tenantId, documento])
   @@map("owners")
@@ -120,6 +134,7 @@ model Pet {
   citas      Appointment[]
   consultas  Consultation[]
   pesosHistorico PetWeight[]
+  hospedajes Hospedaje[]
 
   @@map("pets")
 }
@@ -454,4 +469,66 @@ model Turno {
 
   @@unique([staffId, fecha])
   @@map("turnos")
+}
+
+// ── Cierre de caja diario ────────────────────────────────────
+model CajaCierre {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  fechaDia           String   // YYYY-MM-DD (día cuadrado)
+  saldoAnterior      Float    @default(0)
+  totalEfectivo      Float    @default(0)
+  totalTarjeta       Float    @default(0)
+  totalTransferencia Float    @default(0)
+  totalVentas        Float    @default(0)  // suma ventas del día (desde BD)
+  diferencia         Float    @default(0)  // (efectivo+tarjeta+transferencia) - totalVentas
+  observaciones      String?
+  usuarioId          String
+  createdAt          DateTime @default(now())
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario User   @relation(fields: [usuarioId], references: [id])
+
+  @@map("caja_cierres")
+}
+
+// ── Metas de ventas ──────────────────────────────────────────
+model Meta {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tipo      String   // 'diaria' | 'mensual'
+  monto     Float
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("metas")
+}
+
+// ── Hospedaje (Internación) ──────────────────────────────────
+model Hospedaje {
+  id              String    @id @default(uuid())
+  tenantId        String
+  petId           String
+  propietarioId   String
+  fechaEntrada    DateTime
+  fechaSalidaEst  DateTime?
+  fechaSalidaReal DateTime?
+  estado          String    @default("activo")  // 'activo' | 'finalizado' | 'cancelado'
+  tipoAlojamiento String?   // 'jaula_pequena' | 'jaula_mediana' | 'jaula_grande' | 'area'
+  dieta           String?
+  cuidados        String?
+  observaciones   String?
+  precioPorNoche  Float?
+  notas           String?   // notas del personal durante estadía
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pet         Pet    @relation(fields: [petId], references: [id])
+  propietario Owner  @relation(fields: [propietarioId], references: [id])
+
+  @@map("hospedajes")
 }

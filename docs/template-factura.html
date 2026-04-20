@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Factura Electrónica N° {{FOLIO}} — {{NOMBRE_CLINICA}}</title>
+  <!--
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  FACTURA ELECTRÓNICA AFECTA — TIPO DTE 33                       ║
+  ║  Estándar SII · Res. Ex. SII N°11 del 14.02.2003                ║
+  ║  Variables de reemplazo disponibles:                             ║
+  ║  {{NOMBRE_CLINICA}}  {{RUT_CLINICA}}  {{GIRO_CLINICA}}          ║
+  ║  {{DIRECCION_CLINICA}}  {{COMUNA_CLINICA}}  {{CIUDAD_CLINICA}}   ║
+  ║  {{TELEFONO_CLINICA}}  {{EMAIL_CLINICA}}                         ║
+  ║  {{RESOLUCION_SII}}  (ej: "Res. Ex. SII N°XX Año YYYY")         ║
+  ║  {{FOLIO}}  {{FECHA}}  {{CONDICION_VENTA}}  {{FORMA_PAGO}}       ║
+  ║  {{ATENDIDO_POR}}  {{LOGO_HTML}}                                 ║
+  ║  ── Datos receptor ──                                            ║
+  ║  {{RAZON_SOCIAL_REC}}  {{RUT_REC}}  {{GIRO_REC}}                ║
+  ║  {{DIRECCION_REC}}  {{COMUNA_REC}}                               ║
+  ║  ── Montos ──                                                    ║
+  ║  {{NETO}}  {{IVA}}  {{TOTAL}}  {{EXENTO}}                        ║
+  ║  ── Ítems ──                                                     ║
+  ║  {{ITEMS_HTML}}                                                  ║
+  ║  ── Extras opcionales ──                                         ║
+  ║  {{NOTAS_HTML}}  {{ALERTA_HTML}}                                 ║
+  ║  {{TIMBRE_HTML}} ← código CAF/PDF417 simulado                   ║
+  ╚══════════════════════════════════════════════════════════════════╝
+  -->
+  <style>
+    /* ===== RESET ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 13px;
+      color: #111;
+      background: #f5f5f5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ===== PÁGINA A4 ===== */
+    .pagina {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 20px auto;
+      background: #fff;
+      padding: 14mm 18mm 16mm;
+      box-shadow: 0 4px 24px rgba(0,0,0,.12);
+      position: relative;
+    }
+    @media print {
+      body { background: white; }
+      .pagina { margin: 0; box-shadow: none; padding: 12mm 16mm 14mm; }
+      .no-print { display: none !important; }
+      @page { size: A4 portrait; margin: 0; }
+    }
+
+    /* ===== LEYENDA CEDEABLE (esquina superior derecha) ===== */
+    .leyenda-cedeable {
+      position: absolute;
+      top: 14mm;
+      right: 18mm;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      color: #374151;
+      text-transform: uppercase;
+      border: 1px solid #9ca3af;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    /* ===== BLOQUE TIMBRE / RESOLUCIÓN (banner superior) ===== */
+    .resolucion-banner {
+      background: #1e3a5f;
+      color: #e0eeff;
+      font-size: 8.5px;
+      text-align: center;
+      padding: 5px 12px;
+      border-radius: 5px 5px 0 0;
+      letter-spacing: .04em;
+      margin-bottom: 0;
+    }
+    .resolucion-banner strong { color: #fff; }
+
+    /* ===== ENCABEZADO ===== */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 14px 0 14px;
+      border-bottom: 2.5px solid #1e3a5f;
+      margin-bottom: 12px;
+    }
+    .clinic-info { display: flex; align-items: flex-start; gap: 14px; }
+    .clinic-logo {
+      width: 60px; height: 60px;
+      object-fit: contain;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+    .clinic-name  { font-size: 17px; font-weight: 800; color: #111; }
+    .clinic-sub   { font-size: 9.5px; color: #555; margin-top: 2px; line-height: 1.5; }
+    .clinic-rut   { font-size: 11px; font-weight: 700; color: #1e3a5f; margin-top: 4px; }
+
+    /* Caja de tipo + folio — obligatoria según SII */
+    .folio-box {
+      border: 2.5px solid #1e3a5f;
+      padding: 10px 18px;
+      text-align: center;
+      border-radius: 6px;
+      min-width: 185px;
+    }
+    .folio-tipo  {
+      font-size: 11px; font-weight: 800;
+      letter-spacing: .05em; color: #1e3a5f;
+      text-transform: uppercase;
+    }
+    .folio-label {
+      font-size: 8px; font-weight: 700;
+      letter-spacing: .1em; color: #555;
+      text-transform: uppercase; margin-top: 6px;
+    }
+    .folio-num   { font-size: 24px; font-weight: 800; color: #1e3a5f; margin-top: 1px; }
+    .folio-fecha { font-size: 9px; color: #666; margin-top: 5px; }
+    .folio-dte   {
+      font-size: 7.5px; color: #1e3a5f; font-weight: 700;
+      border-top: 1px solid #bfdbfe; margin-top: 6px; padding-top: 4px;
+    }
+
+    /* ===== DATOS DEL EMISOR (giro + dirección — campo obligatorio SII) ===== */
+    .emisor-datos {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 20px;
+      background: #f0f4ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      font-size: 10.5px;
+      color: #374151;
+    }
+    .emisor-datos .ed-label { font-size: 8px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: .06em; }
+
+    /* ===== DATOS DEL RECEPTOR ===== */
+    .receptor-bloque {
+      border: 1.5px solid #1e3a5f;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .receptor-titulo {
+      background: #1e3a5f;
+      color: #fff;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+    }
+    .receptor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: #222;
+    }
+    .receptor-grid .rg-item { padding: 3px 0; }
+    .receptor-grid .rg-label { font-size: 8px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .06em; display: block; }
+    .receptor-grid .rg-valor { display: block; }
+    .receptor-grid .rg-full  { grid-column: 1 / -1; }
+
+    /* ===== CONDICIONES DE VENTA ===== */
+    .condiciones-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .cond-badge {
+      font-size: 10px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid #c7d2fe;
+      background: #eef2ff;
+      color: #3730a3;
+      font-weight: 600;
+    }
+
+    /* ===== TABLA DE ÍTEMS ===== */
+    table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+    thead tr { background: #1e3a5f; }
+    th {
+      padding: 7px 9px;
+      text-align: left;
+      font-size: 9.5px;
+      color: #e0eeff;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 7px 9px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 11.5px;
+      color: #333;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #f8faff; }
+    .td-right  { text-align: right; }
+    .td-center { text-align: center; }
+    .td-bold   { font-weight: 600; }
+    .td-exento { font-size: 9px; color: #6b7280; }
+
+    /* ===== TOTALES (obligatorio desglose IVA según SII) ===== */
+    .totales-wrap { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+    .totales-box {
+      min-width: 260px;
+      border: 1.5px solid #c7d2fe;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 14px;
+      font-size: 11.5px;
+      color: #555;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .total-row.exento { color: #6b7280; font-size: 10.5px; }
+    .total-row:last-child { border-bottom: none; }
+    .total-principal {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 14px;
+      background: #1e3a5f;
+      color: #fff;
+    }
+    .total-principal .label { font-size: 13px; font-weight: 700; }
+    .total-principal .valor { font-size: 20px; font-weight: 800; }
+
+    /* ===== NOTAS ===== */
+    .notas-box {
+      margin-top: 10px;
+      padding: 9px 13px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 10.5px;
+    }
+    .notas-label {
+      font-size: 8px; font-weight: 700; color: #888;
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px;
+    }
+
+    /* ===== ALERTA ===== */
+    .alerta-box {
+      padding: 7px 12px;
+      background: #fff7ed;
+      border: 1px solid #fdba74;
+      border-radius: 6px;
+      font-size: 10.5px;
+      color: #92400e;
+      margin-bottom: 10px;
+    }
+
+    /* ===== TIMBREELECTRÓNICO SII ===== */
+    /*
+      El timbre real es un código PDF417 generado por el CAF firmado.
+      En este template se incluye una representación visual de reserva.
+      Al integrar con SII DTE real, reemplazar {{TIMBRE_HTML}} por el
+      código SVG/imagen del PDF417 generado.
+    */
+    .timbre-bloque {
+      margin-top: 18px;
+      border-top: 1px dashed #6366f1;
+      padding-top: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .timbre-qr-placeholder {
+      width: 80px; height: 80px;
+      border: 1.5px solid #6366f1;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      background: #f5f3ff;
+      flex-shrink: 0;
+    }
+    .timbre-qr-placeholder span {
+      font-size: 7px; color: #6366f1; text-align: center;
+      font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+      line-height: 1.4; padding: 4px;
+    }
+    .timbre-texto {
+      font-size: 8px; color: #555; line-height: 1.6;
+    }
+    .timbre-texto strong { color: #111; }
+
+    /* ===== FIRMA ===== */
+    .firma-row {
+      display: flex; justify-content: flex-end;
+      margin-top: 24px; gap: 32px;
+    }
+    .firma-box { text-align: center; }
+    .firma-linea {
+      border-top: 1px solid #ccc;
+      margin-bottom: 5px; padding-top: 5px;
+      font-size: 9.5px; color: #444; width: 180px;
+    }
+    .firma-label { font-size: 8px; color: #aaa; }
+
+    /* ===== PIE ===== */
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      border-top: 1px dashed #ccc;
+      padding-top: 10px;
+      font-size: 8.5px; color: #aaa;
+    }
+
+    .no-print {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: #1e3a5f; color: #fff;
+      border: none; padding: 11px 22px;
+      border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.2);
+      transition: background .2s;
+    }
+    .no-print:hover { background: #1e40af; }
+  </style>
+</head>
+<body>
+
+<div class="pagina">
+
+  <!-- LEYENDA CEDEABLE — SII exige indicación -->
+  <div class="leyenda-cedeable">NO CEDEABLE</div>
+
+  <!-- RESOLUCIÓN SII — texto obligatorio para DTE -->
+  <div class="resolucion-banner">
+    Documento Tributario Electrónico · <strong>{{RESOLUCION_SII}}</strong>
+    &nbsp;|&nbsp; Verifique documento en <strong>www.sii.cl</strong>
+  </div>
+
+  <!-- == ALERTA (opcional) == -->
+  {{ALERTA_HTML}}
+
+  <!-- == ENCABEZADO == -->
+  <div class="header">
+    <div class="clinic-info">
+      {{LOGO_HTML}}
+      <div>
+        <div class="clinic-name">{{NOMBRE_CLINICA}}</div>
+        <div class="clinic-rut">RUT: {{RUT_CLINICA}}</div>
+        <div class="clinic-sub">
+          {{GIRO_CLINICA}}<br/>
+          {{DIRECCION_CLINICA}}, {{COMUNA_CLINICA}}<br/>
+          {{TELEFONO_CLINICA}}&nbsp;&nbsp;{{EMAIL_CLINICA}}
+        </div>
+      </div>
+    </div>
+
+    <!-- Caja de tipo + folio — posición y contenido exigidos por SII -->
+    <div class="folio-box">
+      <div class="folio-tipo">Factura Electrónica</div>
+      <div class="folio-tipo" style="font-size:9px;font-weight:600;color:#4b5563;margin-top:2px;">Afecta</div>
+      <div class="folio-label">N° de Folio</div>
+      <div class="folio-num">{{FOLIO}}</div>
+      <div class="folio-fecha">{{FECHA}}</div>
+      <div class="folio-dte">DTE Tipo 33</div>
+    </div>
+  </div>
+
+  <!-- == DATOS DEL EMISOR (Giro + Dirección — campo obligatorio SII) == -->
+  <div class="emisor-datos">
+    <div>
+      <div class="ed-label">Giro del emisor</div>
+      <div>{{GIRO_CLINICA}}</div>
+    </div>
+    <div>
+      <div class="ed-label">Actividad económica</div>
+      <div>Servicios Veterinarios</div>
+    </div>
+    <div>
+      <div class="ed-label">Dirección</div>
+      <div>{{DIRECCION_CLINICA}}, {{COMUNA_CLINICA}}, {{CIUDAD_CLINICA}}</div>
+    </div>
+    <div>
+      <div class="ed-label">Resolución SII</div>
+      <div>{{RESOLUCION_SII}}</div>
+    </div>
+  </div>
+
+  <!-- == DATOS DEL RECEPTOR (obligatorios en Factura — RUT empresa) == -->
+  <div class="receptor-bloque">
+    <div class="receptor-titulo">Datos del Receptor</div>
+    <div class="receptor-grid">
+      <div class="rg-item rg-full">
+        <span class="rg-label">Razón Social</span>
+        <span class="rg-valor" style="font-size:13px;font-weight:700;">{{RAZON_SOCIAL_REC}}</span>
+      </div>
+      <div class="rg-item">
+        <span class="rg-label">RUT Receptor</span>
+        <span class="rg-valor" style="font-weight:600;">{{RUT_REC}}</span>
+      </div>
+      <div class="rg-item">
+        <span class="rg-label">Giro / Actividad</span>
+        <span class="rg-valor">{{GIRO_REC}}</span>
+      </div>
+      <div class="rg-item">
+        <span class="rg-label">Dirección</span>
+        <span class="rg-valor">{{DIRECCION_REC}}</span>
+      </div>
+      <div class="rg-item">
+        <span class="rg-label">Comuna / Ciudad</span>
+        <span class="rg-valor">{{COMUNA_REC}}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- == CONDICIONES DE VENTA == -->
+  <div class="condiciones-row">
+    <span class="cond-badge">Condición: {{CONDICION_VENTA}}</span>
+    <span class="cond-badge">Pago: {{FORMA_PAGO}}</span>
+    <span class="cond-badge">Atendido por: {{ATENDIDO_POR}}</span>
+  </div>
+
+  <!-- == ÍTEMS == -->
+  <!--
+    Estructura esperada de {{ITEMS_HTML}} (cada fila):
+    <tr>
+      <td class="td-center">{{NUM}}</td>
+      <td class="td-center">{{COD_ITEM}}</td>  ← opcional
+      <td>{{DESCRIPCION}}</td>
+      <td class="td-center">{{CANTIDAD}}</td>
+      <td class="td-right td-bold">{{P_UNITARIO_NETO}}</td>
+      <td class="td-right">{{DESCUENTO}}%</td>  ← si aplica
+      <td class="td-right td-bold">{{SUBTOTAL_NETO}}</td>
+    </tr>
+    Los montos en factura deben ser NETOS (sin IVA incluido).
+  -->
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30px;">#</th>
+        <th style="width:70px;">Código</th>
+        <th>Descripción</th>
+        <th class="td-center" style="width:55px;">Cant.</th>
+        <th class="td-right" style="width:110px;">P. Neto Unit.</th>
+        <th class="td-right" style="width:110px;">Subtotal Neto</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ITEMS_HTML}}
+    </tbody>
+  </table>
+
+  <!-- == TOTALES — desglose neto/IVA obligatorio SII == -->
+  <div class="totales-wrap">
+    <div class="totales-box">
+      <!-- Si hay montos exentos: -->
+      <!-- <div class="total-row exento"><span>Monto Exento</span><span>{{EXENTO}}</span></div> -->
+      <div class="total-row"><span>Subtotal Neto</span><span>{{NETO}}</span></div>
+      <div class="total-row"><span>IVA 19%</span><span>{{IVA}}</span></div>
+      <div class="total-principal">
+        <span class="label">TOTAL</span>
+        <span class="valor">{{TOTAL}}</span>
+      </div>
+    </div>
+  </div>
+
+  {{NOTAS_HTML}}
+
+  <!-- == TIMBRE ELECTRÓNICO SII ==
+       Reemplazar {{TIMBRE_HTML}} con el PDF417 real generado por el CAF.
+       La normativa SII exige que esté en el tercio inferior del documento.
+  -->
+  <div class="timbre-bloque">
+    <div class="timbre-qr-placeholder">
+      {{TIMBRE_HTML}}
+      <!--
+        Fallback visual si no se inyecta código real:
+        <span>TIMBRE<br/>ELECTRÓNICO<br/>SII<br/>(CAF)</span>
+      -->
+    </div>
+    <div class="timbre-texto">
+      <strong>Timbre Electrónico SII</strong><br/>
+      Resolución: <strong>{{RESOLUCION_SII}}</strong><br/>
+      Verifique la validez de este documento en <strong>www.sii.cl</strong><br/>
+      Cedible con su factura · Art. 69 Cód. Tributario<br/>
+      <span style="font-size:7px;color:#9ca3af;">
+        Este documento es una representación impresa de un DTE.<br/>
+        El original electrónico es el que tiene validez tributaria.
+      </span>
+    </div>
+  </div>
+
+  <!-- == FIRMA DEL EMISOR (opcional pero recomendado) == -->
+  <div class="firma-row">
+    <div class="firma-box">
+      <div class="firma-linea">_________________________________</div>
+      <div class="firma-label">Firma y Timbre Establecimiento</div>
+    </div>
+  </div>
+
+  <!-- == PIE == -->
+  <div class="footer">
+    Documento Tributario Electrónico generado por KMCVet
+    &mdash; {{NOMBRE_CLINICA}} · RUT {{RUT_CLINICA}}
+    &mdash; Verifique en www.sii.cl
+  </div>
+
+</div>
+
+<button class="no-print" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+
+</body>
+</html>

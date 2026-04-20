@@ -1,6 +1,150 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '../../shared/lib/api';
 
+// ─── Sección Metas ────────────────────────────────────────────────
+interface Meta { id: string; tipo: string; monto: number; activa: boolean; createdAt: string }
+
+function SeccionMetas() {
+  const [metas, setMetas]           = useState<Meta[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [montoDia, setMontoDia]     = useState('');
+  const [montoMes, setMontoMes]     = useState('');
+  const [savingDia, setSavingDia]   = useState(false);
+  const [savingMes, setSavingMes]   = useState(false);
+
+  const metaDiaria   = metas.find(m => m.tipo === 'diaria'  && m.activa);
+  const metaMensual  = metas.find(m => m.tipo === 'mensual' && m.activa);
+
+  function fmtCLP(n: number) {
+    return n.toLocaleString('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 });
+  }
+
+  useEffect(() => {
+    apiClient.get('/metas')
+      .then(r => {
+        setMetas(r.data ?? []);
+        const dia = r.data.find((m: Meta) => m.tipo === 'diaria' && m.activa);
+        const mes = r.data.find((m: Meta) => m.tipo === 'mensual' && m.activa);
+        if (dia) setMontoDia(String(dia.monto));
+        if (mes) setMontoMes(String(mes.monto));
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function guardar(tipo: 'diaria' | 'mensual') {
+    const monto = tipo === 'diaria' ? parseFloat(montoDia) : parseFloat(montoMes);
+    if (!monto || monto <= 0) return;
+    tipo === 'diaria' ? setSavingDia(true) : setSavingMes(true);
+    try {
+      const { data } = await apiClient.post('/metas', { tipo, monto });
+      setMetas(prev => {
+        const sin = prev.map(m => m.tipo === tipo ? { ...m, activa: false } : m);
+        return [data, ...sin];
+      });
+    } catch(e: any) {
+      alert(e?.response?.data?.message ?? 'Error al guardar meta');
+    } finally {
+      tipo === 'diaria' ? setSavingDia(false) : setSavingMes(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      <div>
+        <h2 className="text-base font-bold text-gray-800 mb-1">Metas de ventas</h2>
+        <p className="text-sm text-gray-400">Define objetivos de ingresos diarios y mensuales. El dashboard mostrará el progreso en tiempo real.</p>
+      </div>
+
+      {/* Meta diaria */}
+      <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Meta diaria</p>
+            <p className="text-xs text-gray-400">Objetivo de ventas por día</p>
+          </div>
+          {metaDiaria && (
+            <span className="ml-auto text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
+              Activa: {fmtCLP(metaDiaria.monto)}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+            <input type="number" min={0} value={montoDia} onChange={e => setMontoDia(e.target.value)}
+              placeholder="Ej: 150000"
+              className="w-full pl-7 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+          </div>
+          <button onClick={() => guardar('diaria')} disabled={savingDia || !montoDia}
+            className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-2">
+            {savingDia && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            Guardar
+          </button>
+        </div>
+      </div>
+
+      {/* Meta mensual */}
+      <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-800">Meta mensual</p>
+            <p className="text-xs text-gray-400">Objetivo de ventas para el mes</p>
+          </div>
+          {metaMensual && (
+            <span className="ml-auto text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full">
+              Activa: {fmtCLP(metaMensual.monto)}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+            <input type="number" min={0} value={montoMes} onChange={e => setMontoMes(e.target.value)}
+              placeholder="Ej: 3000000"
+              className="w-full pl-7 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+          </div>
+          <button onClick={() => guardar('mensual')} disabled={savingMes || !montoMes}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors flex items-center gap-2">
+            {savingMes && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            Guardar
+          </button>
+        </div>
+      </div>
+
+      {/* Historial */}
+      {!loading && metas.length > 0 && (
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <p className="text-sm font-semibold text-gray-700">Historial de metas</p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {metas.map(m => (
+              <div key={m.id} className="flex items-center justify-between px-5 py-3">
+                <div>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full mr-2 ${m.tipo === 'diaria' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>
+                    {m.tipo === 'diaria' ? 'Diaria' : 'Mensual'}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-800">{fmtCLP(m.monto)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {m.activa && <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ Activa</span>}
+                  <span className="text-xs text-gray-400">{new Date(m.createdAt).toLocaleDateString('es-CL')}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Tipos ────────────────────────────────────────────────────────
 interface Doctor {
   id: string;
@@ -20,10 +164,27 @@ interface TipoAtencion {
 }
 
 interface ClinicaConfig {
-  nombre: string;
-  logoUrl?: string | null;
-  emailClinica?: string | null;
-  telefonos?: string | null;
+  // ── Identidad visual ──────────────────────────────────────
+  nombre:           string;          // nombre de fantasía / visible
+  logoUrl?:         string | null;
+  eslogan?:         string | null;
+  // ── Datos fiscales / tributarios ─────────────────────────
+  nombreEmpresa?:   string | null;   // razón social
+  rutEmpresa?:      string | null;   // RUT tributario
+  giroClinica?:     string | null;   // giro SII
+  resolucionSII?:   string | null;   // Res. Ex. SII N°XX Año YYYY
+  dteTipo?:         string | null;   // 39=boleta afecta | 41=boleta exenta
+  // ── Ubicación ────────────────────────────────────────────
+  direccionClinica? :string | null;
+  comunaClinica?:   string | null;
+  ciudadClinica?:   string | null;
+  // ── Contacto ─────────────────────────────────────────────
+  emailClinica?:    string | null;
+  telefonos?:       string | null;
+  // ── Plantillas ───────────────────────────────────────────
+  plantillaBoletaUrl?:      string | null;
+  plantillaFacturaUrl?:     string | null;
+  plantillaNotaCreditoUrl?: string | null;
 }
 
 const COLORS: Record<string, string> = {
@@ -430,7 +591,13 @@ function SeccionTiposAtencion() {
 
 // ─── Sección Clínica ──────────────────────────────────────────
 function SeccionClinica() {
-  const [data, setData]           = useState<ClinicaConfig>({ nombre: '', logoUrl: null, emailClinica: null, telefonos: null });
+  const [data, setData]           = useState<ClinicaConfig>({
+    nombre: '', nombreEmpresa: '', rutEmpresa: '', giroClinica: '',
+    eslogan: '', resolucionSII: '', dteTipo: '39',
+    direccionClinica: '', comunaClinica: '', ciudadClinica: '',
+    emailClinica: '', telefonos: '',
+    logoUrl: null,
+  });
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -449,13 +616,24 @@ function SeccionClinica() {
     setSaving(true);
     try {
       const r = await apiClient.put('/configuracion/clinica', {
-        nombre:       data.nombre,
-        emailClinica: data.emailClinica || null,
-        telefonos:    data.telefonos    || null,
+        nombre:           data.nombre,
+        nombreEmpresa:    data.nombreEmpresa    || null,
+        rutEmpresa:       data.rutEmpresa       || null,
+        giroClinica:      data.giroClinica      || null,
+        resolucionSII:    data.resolucionSII    || null,
+        dteTipo:          data.dteTipo          || '39',
+        direccionClinica: data.direccionClinica || null,
+        comunaClinica:    data.comunaClinica    || null,
+        ciudadClinica:    data.ciudadClinica    || null,
+        eslogan:          data.eslogan          || null,
+        emailClinica:     data.emailClinica     || null,
+        telefonos:        data.telefonos        || null,
       });
       setData(r.data);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+      // Notificar al AppLayout para que refresque nombre/logo
+      window.dispatchEvent(new Event('clinica-updated'));
     } catch (err: any) {
       alert(err?.response?.data?.message ?? 'Error al guardar');
     } finally {
@@ -526,15 +704,96 @@ function SeccionClinica() {
           </div>
         </div>
 
-        {/* Información */}
+        {/* ── Identidad de la clínica ── */}
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Información de la clínica</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <span className="w-1.5 h-3.5 bg-emerald-500 rounded-full inline-block" /> Identidad de la clínica
+          </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Nombre de la veterinaria <span className="text-red-400">*</span></label>
+              <label className="block text-xs text-gray-500 mb-1">Nombre de fantasía / nombre visible <span className="text-red-400">*</span></label>
               <input value={data.nombre} onChange={e => setData(p => ({ ...p, nombre: e.target.value }))}
-                placeholder="Ej: Clínica Veterinaria San Patricio" className={inputCls} />
+                placeholder="Ej: Clínica Veterinaria KMC" className={inputCls} />
+              <p className="text-[11px] text-gray-400 mt-1">Es el nombre que aparece en la app y en los documentos</p>
             </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Eslogan / tagline</label>
+              <input value={data.eslogan ?? ''} onChange={e => setData(p => ({ ...p, eslogan: e.target.value }))}
+                placeholder="Ej: Cuidamos a tu mejor amigo" className={inputCls} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Datos fiscales / tributarios ── */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <span className="w-1.5 h-3.5 bg-blue-500 rounded-full inline-block" /> Datos tributarios (SII)
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Razón social (nombre empresa legal)</label>
+              <input value={data.nombreEmpresa ?? ''} onChange={e => setData(p => ({ ...p, nombreEmpresa: e.target.value }))}
+                placeholder="Ej: Servicios Veterinarios KMC SpA" className={inputCls} />
+              <p className="text-[11px] text-gray-400 mt-1">Nombre con que está inscrito en el SII — aparece en facturas y NC</p>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">RUT empresa / contribuyente</label>
+              <input value={data.rutEmpresa ?? ''} onChange={e => setData(p => ({ ...p, rutEmpresa: e.target.value }))}
+                placeholder="Ej: 76.123.456-7" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Giro comercial (SII)</label>
+              <input value={data.giroClinica ?? ''} onChange={e => setData(p => ({ ...p, giroClinica: e.target.value }))}
+                placeholder="Ej: Servicios Veterinarios" className={inputCls} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Resolución SII (autorización DTE)</label>
+              <input value={data.resolucionSII ?? ''} onChange={e => setData(p => ({ ...p, resolucionSII: e.target.value }))}
+                placeholder="Ej: Res. Ex. SII N°80 Año 2014" className={inputCls} />
+              <p className="text-[11px] text-gray-400 mt-1">Aparece en el pie de todas las boletas, facturas y notas de crédito</p>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Tipo de boleta electrónica (DTE)</label>
+              <select value={data.dteTipo ?? '39'} onChange={e => setData(p => ({ ...p, dteTipo: e.target.value }))}
+                className={inputCls}>
+                <option value="39">DTE Tipo 39 — Boleta afecta (con IVA)</option>
+                <option value="41">DTE Tipo 41 — Boleta exenta (sin IVA)</option>
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">La mayoría de las veterinarias emite Tipo 39</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Dirección ── */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <span className="w-1.5 h-3.5 bg-amber-500 rounded-full inline-block" /> Dirección
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-3">
+              <label className="block text-xs text-gray-500 mb-1">Dirección</label>
+              <input value={data.direccionClinica ?? ''} onChange={e => setData(p => ({ ...p, direccionClinica: e.target.value }))}
+                placeholder="Ej: Av. Las Condes 12345, Of. 302" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Comuna</label>
+              <input value={data.comunaClinica ?? ''} onChange={e => setData(p => ({ ...p, comunaClinica: e.target.value }))}
+                placeholder="Ej: Las Condes" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Ciudad</label>
+              <input value={data.ciudadClinica ?? ''} onChange={e => setData(p => ({ ...p, ciudadClinica: e.target.value }))}
+                placeholder="Ej: Santiago" className={inputCls} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Contacto ── */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <span className="w-1.5 h-3.5 bg-violet-500 rounded-full inline-block" /> Contacto
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Correo electrónico</label>
               <input type="email" value={data.emailClinica ?? ''} onChange={e => setData(p => ({ ...p, emailClinica: e.target.value }))}
@@ -722,6 +981,7 @@ function SeccionFolios() {
     { key: 'boleta',       label: 'Boleta' },
     { key: 'factura',      label: 'Factura' },
     { key: 'nota_credito', label: 'Nota de Crédito' },
+    { key: 'reserva',      label: 'Folios Reserva' },
   ];
 
   function fmtFecha(iso?: string | null) {
@@ -788,9 +1048,9 @@ function SeccionFolios() {
         </div>
       </div>
 
-      {/* Estado actual por tipo */}
+      {/* Estado actual por tipo — todos los tipos incluyendo reserva */}
       {!loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {TIPOS.map(({ key, label }) => {
             const s = status[key];
             const folioActivo = folios.find(f => f.tipo === key && f.activo && f.actual <= f.hasta);
@@ -860,7 +1120,16 @@ function SeccionFolios() {
 
       {/* Lista/historial de rangos cargados */}
       <div>
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Historial de rangos asignados</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Historial de rangos asignados</h3>
+          {folios.length > 0 && (
+            <button onClick={() => exportarFoliosCSV(folios)}
+              className="flex items-center gap-1.5 text-xs text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors font-semibold">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Exportar Excel (CSV)
+            </button>
+          )}
+        </div>
         {loading ? (
           <div className="flex items-center justify-center h-16">
             <span className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -926,9 +1195,179 @@ function SeccionFolios() {
   );
 }
 
+// ─── Helper: exportar folios a CSV ──────────────────────────────
+function exportarFoliosCSV(folios: FolioRange[]) {
+  const headers = ['Tipo','Desde','Hasta','Usados','Disponibles','Estado','F. Carga','F. Vencimiento'];
+  const rows = folios.map(f => {
+    const disp = Math.max(0, f.hasta - f.actual + 1);
+    const agotado = disp === 0;
+    const vencido = f.fechaVencimiento ? new Date(f.fechaVencimiento) < new Date() : false;
+    const estado = agotado ? 'Agotado' : vencido ? 'Vencido' : 'Activo';
+    const usados = agotado ? f.hasta - f.desde + 1 : Math.max(0, f.actual - f.desde);
+    const fCarga = f.createdAt ? new Date(f.createdAt).toLocaleDateString('es-CL') : '';
+    const fVenc  = f.fechaVencimiento ? new Date(f.fechaVencimiento).toLocaleDateString('es-CL') : '';
+    return [f.tipo.replace('_',' '), f.desde, f.hasta, usados, disp, estado, fCarga, fVenc];
+  });
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `folios_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ─── Configuración Hospital / Hospedaje ───────────────────────────
+function SeccionHospital() {
+  const TIPOS_ALJ = [
+    { key: 'jaula_pequena',  label: 'Jaula pequeña',  desc: 'Para mascotas hasta 5 kg' },
+    { key: 'jaula_mediana',  label: 'Jaula mediana',  desc: 'Para mascotas de 5-20 kg' },
+    { key: 'jaula_grande',   label: 'Jaula grande',   desc: 'Para mascotas sobre 20 kg' },
+    { key: 'area',           label: 'Área libre',     desc: 'Zona amplia, sin jaula' },
+  ];
+
+  const [cfg, setCfg] = useState({
+    capacidadTotal:    '',
+    jaula_pequena:     { cantidad: '', precio: '' },
+    jaula_mediana:     { cantidad: '', precio: '' },
+    jaula_grande:      { cantidad: '', precio: '' },
+    area:              { cantidad: '', precio: '' },
+    horarioVisita:     '10:00 - 18:00',
+    protocoloEntrada:  'El propietario debe traer carnet de vacunas al día y ficha médica.',
+    protocoloSalida:   'Se entrega resumen de estadía y se cobra el servicio al egreso.',
+    minimoNoches:      '1',
+    observaciones:     '',
+  });
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    // Persiste en localStorage (extensible a API)
+    localStorage.setItem('hospital_cfg', JSON.stringify(cfg));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  // Carga desde localStorage al montar
+  useState(() => {
+    const stored = localStorage.getItem('hospital_cfg');
+    if (stored) { try { setCfg(JSON.parse(stored)); } catch { /* ignore */ } }
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Capacidad general */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <span className="w-1.5 h-4 bg-blue-500 rounded-full" />
+          Capacidad general
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Capacidad total (plazas)</label>
+            <input type="number" min={1} placeholder="Ej: 20"
+              value={cfg.capacidadTotal}
+              onChange={e => setCfg(c => ({ ...c, capacidadTotal: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            <p className="text-xs text-gray-400 mt-1">Número máximo de mascotas hospedadas simultáneamente</p>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Mínimo de noches</label>
+            <input type="number" min={1} placeholder="1"
+              value={cfg.minimoNoches}
+              onChange={e => setCfg(c => ({ ...c, minimoNoches: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          </div>
+        </div>
+      </div>
+
+      {/* Tipos de alojamiento */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <span className="w-1.5 h-4 bg-indigo-500 rounded-full" />
+          Tipos de alojamiento
+        </h2>
+        <div className="space-y-3">
+          {TIPOS_ALJ.map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-700">{label}</p>
+                <p className="text-xs text-gray-400">{desc}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-0.5">Cantidad</label>
+                  <input type="number" min={0} placeholder="0"
+                    value={(cfg as any)[key]?.cantidad ?? ''}
+                    onChange={e => setCfg(c => ({ ...c, [key]: { ...(c as any)[key], cantidad: e.target.value } }))}
+                    className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-0.5">$/noche</label>
+                  <input type="number" min={0} placeholder="0"
+                    value={(cfg as any)[key]?.precio ?? ''}
+                    onChange={e => setCfg(c => ({ ...c, [key]: { ...(c as any)[key], precio: e.target.value } }))}
+                    className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Horarios y protocolos */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <span className="w-1.5 h-4 bg-emerald-500 rounded-full" />
+          Horarios y protocolos
+        </h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Horario de visitas</label>
+            <input type="text" placeholder="Ej: 10:00 - 18:00"
+              value={cfg.horarioVisita}
+              onChange={e => setCfg(c => ({ ...c, horarioVisita: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Protocolo de ingreso (Check-in)</label>
+            <textarea rows={3} value={cfg.protocoloEntrada}
+              onChange={e => setCfg(c => ({ ...c, protocoloEntrada: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+              placeholder="Requisitos para el ingreso de la mascota…" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Protocolo de egreso (Check-out)</label>
+            <textarea rows={3} value={cfg.protocoloSalida}
+              onChange={e => setCfg(c => ({ ...c, protocoloSalida: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+              placeholder="Pasos al momento de retirar la mascota…" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Observaciones generales</label>
+            <textarea rows={2} value={cfg.observaciones}
+              onChange={e => setCfg(c => ({ ...c, observaciones: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+              placeholder="Información adicional para el equipo…" />
+          </div>
+        </div>
+      </div>
+
+      {/* Guardar */}
+      <div className="flex justify-end">
+        <button onClick={handleSave}
+          className={`px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors shadow-sm ${
+            saved ? 'bg-emerald-500 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}>
+          {saved ? '✓ Configuración guardada' : 'Guardar configuración'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Página principal ─────────────────────────────────────────────
 export function ConfiguracionPage() {
-  const [tab, setTab] = useState<'clinica' | 'doctores' | 'tipos' | 'documentos' | 'folios' | 'hospital'>('clinica');
+  const [tab, setTab] = useState<'clinica' | 'doctores' | 'tipos' | 'documentos' | 'folios' | 'metas' | 'hospital'>('clinica');
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -946,6 +1385,7 @@ export function ConfiguracionPage() {
           { key: 'tipos',       label: 'Tipos de Atención' },
           { key: 'documentos',  label: 'Documentos' },
           { key: 'folios',      label: 'Folios' },
+          { key: 'metas',       label: 'Metas' },
           { key: 'hospital',    label: 'Hospital' },
         ] as const).map(({ key, label }) => (
           <button
@@ -965,19 +1405,8 @@ export function ConfiguracionPage() {
       {tab === 'tipos'       && <SeccionTiposAtencion />}
       {tab === 'documentos'  && <SeccionDocumentos />}
       {tab === 'folios'      && <SeccionFolios />}
-      {tab === 'hospital'    && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-          <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-            </svg>
-          </div>
-          <h2 className="text-base font-bold text-gray-800 mb-1">Módulo Hospital</h2>
-          <p className="text-sm text-gray-400 max-w-md mx-auto">
-            Aquí podrás configurar salas de hospitalización, camas, dietas y protocolos de internación. Próximamente disponible.
-          </p>
-        </div>
-      )}
+      {tab === 'metas'       && <SeccionMetas />}
+      {tab === 'hospital'    && <SeccionHospital />}
     </div>
   );
 }

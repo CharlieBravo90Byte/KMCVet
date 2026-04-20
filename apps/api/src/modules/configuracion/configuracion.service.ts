@@ -176,35 +176,62 @@ export class ConfiguracionService {
     const t = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!t) throw new NotFoundException('Clínica no encontrada');
     return {
-      nombre: t.nombre,
-      logoUrl: t.logoUrl ?? null,
-      plantillaBoletaUrl:      (t as any).plantillaBoletaUrl ?? null,
-      plantillaFacturaUrl:     (t as any).plantillaFacturaUrl ?? null,
+      nombre:          t.nombre,
+      nombreEmpresa:   (t as any).nombreEmpresa   ?? null,
+      rutEmpresa:      (t as any).rutEmpresa      ?? null,
+      giroClinica:     (t as any).giroClinica     ?? null,
+      direccionClinica:(t as any).direccionClinica ?? null,
+      comunaClinica:   (t as any).comunaClinica   ?? null,
+      ciudadClinica:   (t as any).ciudadClinica   ?? null,
+      eslogan:         (t as any).eslogan         ?? null,
+      resolucionSII:   (t as any).resolucionSII   ?? null,
+      dteTipo:         (t as any).dteTipo         ?? '39',
+      logoUrl:         t.logoUrl                  ?? null,
+      plantillaBoletaUrl:      (t as any).plantillaBoletaUrl      ?? null,
+      plantillaFacturaUrl:     (t as any).plantillaFacturaUrl     ?? null,
       plantillaNotaCreditoUrl: (t as any).plantillaNotaCreditoUrl ?? null,
-      emailClinica: (t as any).emailClinica ?? null,
-      telefonos: (t as any).telefonos ?? null,
+      emailClinica:    (t as any).emailClinica    ?? null,
+      telefonos:       (t as any).telefonos       ?? null,
     };
   }
 
   async updateClinica(tenantId: string, dto: any) {
     const data: any = {};
-    if (dto.nombre !== undefined)                    data.nombre                    = dto.nombre;
-    if (dto.logoUrl !== undefined)                    data.logoUrl                   = dto.logoUrl;
-    if (dto.emailClinica !== undefined)               data.emailClinica               = dto.emailClinica;
-    if (dto.telefonos !== undefined)                  data.telefonos                  = dto.telefonos;
+    if (dto.nombre             !== undefined) data.nombre             = dto.nombre;
+    if (dto.nombreEmpresa      !== undefined) data.nombreEmpresa      = dto.nombreEmpresa;
+    if (dto.rutEmpresa         !== undefined) data.rutEmpresa         = dto.rutEmpresa;
+    if (dto.giroClinica        !== undefined) data.giroClinica        = dto.giroClinica;
+    if (dto.direccionClinica   !== undefined) data.direccionClinica   = dto.direccionClinica;
+    if (dto.comunaClinica      !== undefined) data.comunaClinica      = dto.comunaClinica;
+    if (dto.ciudadClinica      !== undefined) data.ciudadClinica      = dto.ciudadClinica;
+    if (dto.eslogan            !== undefined) data.eslogan            = dto.eslogan;
+    if (dto.resolucionSII      !== undefined) data.resolucionSII      = dto.resolucionSII;
+    if (dto.dteTipo            !== undefined) data.dteTipo            = dto.dteTipo;
+    if (dto.logoUrl            !== undefined) data.logoUrl            = dto.logoUrl;
+    if (dto.emailClinica       !== undefined) data.emailClinica       = dto.emailClinica;
+    if (dto.telefonos          !== undefined) data.telefonos          = dto.telefonos;
     if (dto.plantillaBoletaUrl !== undefined)         data.plantillaBoletaUrl         = dto.plantillaBoletaUrl;
     if (dto.plantillaFacturaUrl !== undefined)        data.plantillaFacturaUrl        = dto.plantillaFacturaUrl;
     if (dto.plantillaNotaCreditoUrl !== undefined)    data.plantillaNotaCreditoUrl    = dto.plantillaNotaCreditoUrl;
 
     const updated = await this.prisma.tenant.update({ where: { id: tenantId }, data });
     return {
-      nombre: updated.nombre,
-      logoUrl: updated.logoUrl ?? null,
-      plantillaBoletaUrl:      (updated as any).plantillaBoletaUrl ?? null,
-      plantillaFacturaUrl:     (updated as any).plantillaFacturaUrl ?? null,
+      nombre:          updated.nombre,
+      nombreEmpresa:   (updated as any).nombreEmpresa   ?? null,
+      rutEmpresa:      (updated as any).rutEmpresa      ?? null,
+      giroClinica:     (updated as any).giroClinica     ?? null,
+      direccionClinica:(updated as any).direccionClinica ?? null,
+      comunaClinica:   (updated as any).comunaClinica   ?? null,
+      ciudadClinica:   (updated as any).ciudadClinica   ?? null,
+      eslogan:         (updated as any).eslogan         ?? null,
+      resolucionSII:   (updated as any).resolucionSII   ?? null,
+      dteTipo:         (updated as any).dteTipo         ?? '39',
+      logoUrl:         updated.logoUrl                  ?? null,
+      plantillaBoletaUrl:      (updated as any).plantillaBoletaUrl      ?? null,
+      plantillaFacturaUrl:     (updated as any).plantillaFacturaUrl     ?? null,
       plantillaNotaCreditoUrl: (updated as any).plantillaNotaCreditoUrl ?? null,
-      emailClinica: (updated as any).emailClinica ?? null,
-      telefonos: (updated as any).telefonos ?? null,
+      emailClinica:    (updated as any).emailClinica    ?? null,
+      telefonos:       (updated as any).telefonos       ?? null,
     };
   }
 

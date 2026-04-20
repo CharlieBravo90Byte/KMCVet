@@ -62,6 +62,13 @@ function IconPersonal() {
     </svg>
   );
 }
+function IconCaja() {
+  return (
+    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+    </svg>
+  );
+}
 function IconHospital() {
   return (
     <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -78,16 +85,18 @@ const navGroups = [
   {
     label: 'CLÍNICA',
     items: [
-      { to: '/atencion', label: 'Atención', icon: <IconCalendar /> },
-      { to: '/animales', label: 'Registro Animales', icon: <IconPaw /> },
-      { to: '/ventas', label: 'Ventas', icon: <IconSale /> },
+      { to: '/atencion',  label: 'Atención',          icon: <IconCalendar /> },
+      { to: '/animales',  label: 'Registro Animales', icon: <IconPaw /> },
+      { to: '/hospital',  label: 'Hospital',           icon: <IconHospital /> },
+      { to: '/ventas',    label: 'Ventas',             icon: <IconSale /> },
     ],
   },
   {
     label: 'GESTIÓN',
     items: [
       { to: '/inventario', label: 'Inventario', icon: <IconBox /> },
-      { to: '/personal', label: 'Personal', icon: <IconPersonal /> },
+      { to: '/caja',       label: 'Caja',       icon: <IconCaja /> },
+      { to: '/personal',   label: 'Personal',   icon: <IconPersonal /> },
     ],
   },
   {
@@ -113,11 +122,19 @@ export function AppLayout() {
       const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       if (payload.email) setUserEmail(payload.email);
     } catch {}
-    // Obtener info de la clínica
-    fetch('/api/configuracion/clinica', { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.nombre) { setClinicaNombre(d.nombre); setClinicaLogo(d.logoUrl ?? null); } })
-      .catch(() => {});
+
+    function fetchClinica() {
+      const tok = localStorage.getItem('kmcvet_token');
+      if (!tok) return;
+      fetch('/api/configuracion/clinica', { headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.nombre) { setClinicaNombre(d.nombre); setClinicaLogo(d.logoUrl ?? null); } })
+        .catch(() => {});
+    }
+
+    fetchClinica();
+    window.addEventListener('clinica-updated', fetchClinica);
+    return () => window.removeEventListener('clinica-updated', fetchClinica);
   }, []);
 
   const userIniciales = userEmail ? userEmail.split('@')[0].slice(0, 2).toUpperCase() : 'AD';
@@ -217,7 +234,7 @@ export function AppLayout() {
             {!collapsed && 'Cerrar sesión'}
           </button>
           {!collapsed && (
-            <p className="text-center text-[10px] text-green-700 mt-2 select-none">v1.0.1</p>
+            <p className="text-center text-[10px] text-green-700 mt-2 select-none">v1.1.5</p>
           )}
           {collapsed && (
             <button onClick={() => setCollapsed(false)} title="Expandir menú"

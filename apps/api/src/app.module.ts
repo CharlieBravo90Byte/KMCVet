@@ -12,6 +12,9 @@ import { ConsultasModule } from './modules/consultas/consultas.module';
 import { ConfiguracionModule } from './modules/configuracion/configuracion.module';
 import { VentasModule } from './modules/ventas/ventas.module';
 import { PersonalModule } from './modules/personal/personal.module';
+import { CajaModule } from './modules/caja/caja.module';
+import { MetasModule } from './modules/metas/metas.module';
+import { HospitalModule } from './modules/hospital/hospital.module';
 
 @Module({
   imports: [
@@ -41,6 +44,9 @@ import { PersonalModule } from './modules/personal/personal.module';
     ConfiguracionModule,
     VentasModule,
     PersonalModule,
+    CajaModule,
+    MetasModule,
+    HospitalModule,
   ],
 })
 export class AppModule {}

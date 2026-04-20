@@ -191,11 +191,13 @@ export class AnimalesService {
       alergias: p.alergias ?? '',
       condiciones: p.condicionesPrevias ?? '',
       foto: p.fotoUrl ?? '',
+      tutorId: p.propietario?.id ?? '',          // <─ necesario para hospedaje
       tutor: {
-        nombre: p.propietario?.nombre ?? '',
+        id:        p.propietario?.id        ?? '',
+        nombre:    p.propietario?.nombre    ?? '',
         documento: p.propietario?.documento ?? '',
-        telefono: p.propietario?.telefono ?? '',
-        email: p.propietario?.email ?? '',
+        telefono:  p.propietario?.telefono  ?? '',
+        email:     p.propietario?.email     ?? '',
         direccion: p.propietario?.direccion ?? '',
       },
     };

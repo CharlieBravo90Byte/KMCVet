@@ -3,7 +3,32 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{{TIPO_DOCUMENTO}} N° {{FOLIO}} — KMCVet</title>
+  <title>Boleta Electrónica N° {{FOLIO}} — {{NOMBRE_CLINICA}}</title>
+  <!--
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  BOLETA ELECTRÓNICA AFECTA — TIPO DTE 39                        ║
+  ║  (o DTE 41 si el servicio es exento de IVA)                     ║
+  ║  Estándar SII · Res. Ex. SII N°74 del 22.08.2014                ║
+  ║  (boleta electrónica obligatoria para contribuyentes del rubro) ║
+  ║                                                                  ║
+  ║  Variables de reemplazo disponibles:                             ║
+  ║  {{NOMBRE_CLINICA}}  {{RUT_CLINICA}}  {{GIRO_CLINICA}}          ║
+  ║  {{DIRECCION_CLINICA}}  {{TELEFONO_CLINICA}}  {{EMAIL_CLINICA}} ║
+  ║  {{ESLOGAN_CLINICA}}   {{LOGO_HTML}}                             ║
+  ║  {{RESOLUCION_SII}}  (ej: "Res. Ex. SII N°XX Año YYYY")         ║
+  ║  {{DTE_TIPO}}  (ej: "39" ó "41")                                ║
+  ║  {{FOLIO}}  {{FECHA}}  {{ATENDIDO_POR}}                          ║
+  ║  ── Receptor (OPCIONAL en boleta, no exigido por SII) ──        ║
+  ║  {{RUT_HTML}}  (si el cliente pide su RUT en boleta)            ║
+  ║  ── Montos ──                                                    ║
+  ║  {{NETO}}  {{IVA}}  {{TOTAL}}                                    ║
+  ║  ── Ítems ──                                                     ║
+  ║  {{ITEMS_HTML}}                                                  ║
+  ║  ── Extras ──                                                    ║
+  ║  {{NOTAS_HTML}}  {{ALERTA_HTML}}                                 ║
+  ║  {{TIMBRE_HTML}} ← código PDF417 / imagen CAF SII               ║
+  ╚══════════════════════════════════════════════════════════════════╝
+  -->
   <style>
     /* ===== RESET ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,6 +56,46 @@
       .no-print { display: none !important; }
       @page { size: A4 portrait; margin: 0; }
     }
+
+    /* ===== RESOLUCIÓN SII — banner superior ===== */
+    .resolucion-banner {
+      background: #064e3b;
+      color: #a7f3d0;
+      font-size: 8.5px;
+      text-align: center;
+      padding: 4px 12px;
+      border-radius: 5px 5px 0 0;
+      letter-spacing: .04em;
+      margin-bottom: 0;
+    }
+    .resolucion-banner strong { color: #fff; }
+
+    /* ===== TIMBRE ELECTRÓNICO SII ===== */
+    .timbre-bloque {
+      margin-top: 18px;
+      border-top: 1px dashed #6ee7b7;
+      padding-top: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .timbre-qr-placeholder {
+      width: 80px; height: 80px;
+      border: 1.5px solid #065f46;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      background: #f0fdf4;
+      flex-shrink: 0;
+    }
+    .timbre-qr-placeholder span {
+      font-size: 7px; color: #065f46; text-align: center;
+      font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+      line-height: 1.4; padding: 4px;
+    }
+    .timbre-texto {
+      font-size: 8px; color: #555; line-height: 1.7;
+    }
+    .timbre-texto strong { color: #111; }
 
     /* ===== BANNER SUPERIOR (opcional) ===== */
     /* Sube una imagen aquí en Configuración → Plantilla de documentos */
@@ -87,7 +152,8 @@
       border: 1px solid #e5e7eb;
     }
     .clinic-name  { font-size: 18px; font-weight: 800; color: #111; }
-    .clinic-sub   { font-size: 10px; color: #555; margin-top: 3px; }
+    .clinic-sub   { font-size: 10px; color: #555; margin-top: 3px; line-height: 1.5; }
+    .clinic-rut   { font-size: 11px; font-weight: 700; color: #065f46; margin-top: 3px; }
 
     /* Caja de folio */
     .folio-box {
@@ -95,7 +161,11 @@
       padding: 10px 18px;
       text-align: center;
       border-radius: 6px;
-      min-width: 160px;
+      min-width: 175px;
+    }
+    .folio-tipo  {
+      font-size: 11px; font-weight: 800;
+      color: #065f46; text-transform: uppercase; letter-spacing: .04em;
     }
     .folio-label {
       font-size: 9px;
@@ -106,6 +176,10 @@
     }
     .folio-num   { font-size: 22px; font-weight: 800; color: #111; margin-top: 2px; }
     .folio-fecha { font-size: 9px; color: #777; margin-top: 4px; }
+    .folio-dte   {
+      font-size: 7.5px; color: #065f46; font-weight: 700;
+      border-top: 1px solid #a7f3d0; margin-top: 6px; padding-top: 4px;
+    }
 
     /* ===== META ROW ===== */
     .meta-row {
@@ -222,11 +296,11 @@
 
     /* ===== PIE DE PÁGINA ===== */
     .footer {
-      margin-top: 28px;
+      margin-top: 20px;
       text-align: center;
       border-top: 1px dashed #ccc;
       padding-top: 12px;
-      font-size: 9px;
+      font-size: 8.5px;
       color: #aaa;
     }
 
@@ -252,6 +326,12 @@
 <body>
 
   <div class="pagina">
+
+    <!-- RESOLUCIÓN SII — texto obligatorio para DTE boleta -->
+    <div class="resolucion-banner">
+      Documento Tributario Electrónico · <strong>{{RESOLUCION_SII}}</strong>
+      &nbsp;|&nbsp; Verifique documento en <strong>www.sii.cl</strong>
+    </div>
 
     <!-- == BANNER (reemplazar con imagen subida en Configuración) == -->
     <div class="banner-color">
@@ -280,15 +360,21 @@
         {{LOGO_HTML}}
         <div>
           <div class="clinic-name">{{NOMBRE_CLINICA}}</div>
-          {{EMAIL_HTML}}
-          {{TELEFONO_HTML}}
+          <div class="clinic-rut">RUT: {{RUT_CLINICA}}</div>
+          <div class="clinic-sub">
+            {{GIRO_CLINICA}}<br/>
+            {{EMAIL_CLINICA}}&nbsp;&nbsp;{{TELEFONO_CLINICA}}
+          </div>
         </div>
       </div>
 
       <div class="folio-box">
-        <div class="folio-label">{{TIPO_DOCUMENTO}}</div>
-        <div class="folio-num">N° {{FOLIO}}</div>
+        <div class="folio-tipo">Boleta Electrónica</div>
+        <div class="folio-tipo" style="font-size:9px;font-weight:600;color:#4b5563;margin-top:2px;">Afecta &mdash; DTE Tipo {{DTE_TIPO}}</div>
+        <div class="folio-label">N° de Folio</div>
+        <div class="folio-num">{{FOLIO}}</div>
         <div class="folio-fecha">{{FECHA}}</div>
+        <div class="folio-dte">SII · {{RESOLUCION_SII}}</div>
       </div>
     </div>
 
@@ -315,15 +401,19 @@
       </tbody>
     </table>
 
-    <!-- == TOTALES == -->
+    <!-- == TOTALES ==
+         Nota SII: la boleta electrónica afecta (DTE 39) solo exige mostrar
+         el TOTAL con IVA incluido. El desglose neto/IVA es referencial.
+         Para boleta exenta (DTE 41) reemplazar por bloque sin IVA.
+    -->
     <div class="totales-wrap">
       <div class="totales-box">
         <div class="total-row">
-          <span>Neto (ref.)</span>
+          <span>Neto (referencial)</span>
           <span>{{NETO}}</span>
         </div>
         <div class="total-row">
-          <span>IVA 19% (ref.)</span>
+          <span>IVA 19% (referencial)</span>
           <span>{{IVA}}</span>
         </div>
         <div class="total-principal">
@@ -335,8 +425,32 @@
 
     {{NOTAS_HTML}}
 
-    <!-- == FIRMAS (opcional, quitar si no se usa) == -->
-    <!--
+    <!-- == TIMBRE ELECTRÓNICO SII ==
+         Obligatorio en el tercio inferior del documento (Res. Ex. N°74/2014).
+         Reemplazar {{TIMBRE_HTML}} con el PDF417 generado por el CAF firmado.
+         El timbre debe contener: RUT emisor, tipo DTE, folio, fecha, RUT receptor
+         (si aplica), monto total y timestamp de la firma electrónica.
+    -->
+    <div class="timbre-bloque">
+      <div class="timbre-qr-placeholder">
+        {{TIMBRE_HTML}}
+        <!--
+          Si no hay código real, mostrar placeholder:
+          <span>TIMBRE<br/>ELECTRÓNICO<br/>SII<br/>(CAF)</span>
+        -->
+      </div>
+      <div class="timbre-texto">
+        <strong>Timbre Electrónico SII</strong><br/>
+        Resolución: <strong>{{RESOLUCION_SII}}</strong><br/>
+        Verifique la validez de este documento en <strong>www.sii.cl</strong><br/>
+        <span style="font-size:7px;color:#9ca3af;">
+          Este documento es una representación impresa de un DTE.<br/>
+          El original electrónico es el que tiene validez tributaria.
+        </span>
+      </div>
+    </div>
+
+    <!-- == FIRMAS (opcional) ==
     <div class="firma-row">
       <div class="firma-box">
         <div class="firma-linea">_____________________________</div>
@@ -351,7 +465,9 @@
 
     <!-- == PIE == -->
     <div class="footer">
-      Documento generado por KMCVet &mdash; Gracias por su preferencia
+      Documento Tributario Electrónico generado por KMCVet
+      &mdash; {{NOMBRE_CLINICA}} · RUT {{RUT_CLINICA}}
+      &mdash; Verifique en www.sii.cl
     </div>
 
   </div>
