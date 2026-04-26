@@ -1,3 +1,39 @@
+# Despliegue Online (Render.com)
+
+Actualmente, el proyecto se está desplegando en Render.com, tanto para el frontend (apps/web) como para el backend (apps/api), usando el plan gratuito y conectado directamente al repositorio de GitHub. Cada vez que se hace un push a la rama principal, Render realiza el deploy automático de ambos servicios.
+
+## Problema encontrado: pnpm-lock.yaml desactualizado
+
+Al intentar desplegar por primera vez, Render arrojó el siguiente error:
+
+```
+ERR_PNPM_OUTDATED_LOCKFILE Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up to date with <ROOT>/apps/api/package.json
+```
+
+Esto ocurre cuando el archivo pnpm-lock.yaml no coincide con los package.json del proyecto (por ejemplo, si se cambió una dependencia y no se actualizó el lockfile).
+
+### Solución
+
+1. Abrir una terminal en la raíz del proyecto.
+2. Ejecutar:
+  ```sh
+  pnpm install
+  ```
+  Esto actualiza el pnpm-lock.yaml según los package.json.
+3. Agregar el lockfile actualizado:
+  ```sh
+  git add pnpm-lock.yaml
+  ```
+4. Hacer commit del cambio:
+  ```sh
+  git commit -m "fix: update pnpm-lock.yaml"
+  ```
+5. Subir los cambios a GitHub:
+  ```sh
+  git push
+  ```
+
+Render detectará el cambio y volverá a intentar el deploy automáticamente. Si todo está correcto, el error desaparecerá y la app se desplegará correctamente.
 # KMCVet — Documento de Proyecto
 
 > Versión: **v1.1.5** — Inicio: 24 de marzo de 2026  
