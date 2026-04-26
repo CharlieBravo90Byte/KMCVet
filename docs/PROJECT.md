@@ -1,7 +1,7 @@
 # KMCVet — Documento de Proyecto
 
-> Versión: 0.8.0 — Inicio: 24 de marzo de 2026  
-> Estado: Desarrollo activo (Fase 0 completada + Fase 1 y 2 avanzadas)
+> Versión: **v1.1.5** — Inicio: 24 de marzo de 2026  
+> Estado: Desarrollo activo (Fases 0, 1 y 2 completas + nuevos módulos en producción)
 
 ---
 
@@ -11,14 +11,15 @@
 2. [Objetivos Clave](#2-objetivos-clave)
 3. [Stack Tecnológico](#3-stack-tecnológico)
 4. [Arquitectura del Sistema](#4-arquitectura-del-sistema)
-5. [Módulos del Sistema](#5-módulos-del-sistema)
-6. [Modelo de Datos Inicial](#6-modelo-de-datos-inicial)
-7. [Estrategia Offline-First](#7-estrategia-offline-first)
-8. [Estrategia White-Label](#8-estrategia-white-label)
-9. [Estructura del Repositorio](#9-estructura-del-repositorio)
-10. [Fases del Proyecto (Roadmap)](#10-fases-del-proyecto-roadmap)
-11. [Decisiones de Diseño](#11-decisiones-de-diseño)
-12. [Registro de Cambios](#12-registro-de-cambios)
+5. [Navegación (Menús y Submenús)](#5-navegación-menús-y-submenús)
+6. [Módulos del Sistema](#6-módulos-del-sistema)
+7. [Modelo de Datos](#7-modelo-de-datos)
+8. [Estrategia Offline-First](#8-estrategia-offline-first)
+9. [Estrategia White-Label](#9-estrategia-white-label)
+10. [Estructura del Repositorio](#10-estructura-del-repositorio)
+11. [Fases del Proyecto (Roadmap)](#11-fases-del-proyecto-roadmap)
+12. [Decisiones de Diseño](#12-decisiones-de-diseño)
+13. [Registro de Cambios](#13-registro-de-cambios)
 
 ---
 
@@ -128,9 +129,86 @@ El sistema está diseñado bajo una arquitectura **white-label**, lo que permite
 
 ---
 
-## 5. Módulos del Sistema
+## 5. Navegación (Menús y Submenús)
 
-### 5.1 Módulo: Atención al Cliente
+El sidebar izquierdo de la aplicación está dividido en 4 grupos de navegación. Cada ítem es una ruta independiente con su propia página y funcionalidad.
+
+```
+SIDEBAR
+│
+├── PRINCIPAL
+│   └── Dashboard            /dashboard
+│       Estadísticas del día, gráfico de ventas, metas diaria/mensual,
+│       accesos rápidos, estado del sistema.
+│
+├── CLÍNICA
+│   ├── Atención             /atencion
+│   │   Agenda de citas en vista semanal y mensual por doctor.
+│   │   Modal de nueva cita con búsqueda de tutor, selección de mascota
+│   │   o creación inline. Historial clínico por mascota al hacer clic.
+│   │
+│   ├── Registro Animales    /animales
+│   │   CRUD de tutores y mascotas. Formulario multi-paso (Tutor → Mascota
+│   │   → Resumen). Foto de mascota. Historial de pesos. Búsqueda y filtro
+│   │   por especie.
+│   │
+│   ├── Hospital             /hospital
+│   │   Gestión de pacientes hospitalizados (hospedaje). Check-in con
+│   │   búsqueda de mascota por especie y texto libre. Vista de hospedajes
+│   │   activos con tarjetas de estado. Historial de hospedajes finalizados.
+│   │   Checkout (dar de alta).
+│   │
+│   └── Ventas               /ventas
+│       Cobro en punto de venta. Selector de tipo de documento
+│       (boleta/factura). RUT cliente opcional/obligatorio según tipo.
+│       Historial de ventas con badge de tipo (BOL/FCT/NC) y N° folio.
+│       Cobros pendientes (sin folio). Nota de crédito por venta.
+│
+├── GESTIÓN
+│   ├── Inventario           /inventario
+│   │   CRUD de productos con categorías (medicamento/alimento/accesorio/
+│   │   clínico/otro). Entrada de stock con documento, proveedor e ítems.
+│   │   Control de stock mínimo y alertas de vencimiento.
+│   │
+│   ├── Caja                 /caja
+│   │   Arqueo y cuadre diario de caja. Declaración de efectivo por
+│   │   denominaciones chilenas (billetes y monedas vigentes). Medios de
+│   │   pago: efectivo, tarjeta, transferencia. Comparación contra ventas
+│   │   del sistema. Diferencia cuadrada/descuadrada. Historial de cierres
+│   │   anteriores. Exportar cierre como HTML imprimible.
+│   │
+│   └── Personal             /personal
+│       Gestión del equipo de trabajo. CRUD de miembros del staff con cargo
+│       (médico veterinario, técnico, recepcionista, administrativo, etc.),
+│       color identificador, email y teléfono. Vista de turnos semanales
+│       en grilla navegable: tipo de turno (Día / Tarde / Noche / Libre)
+│       asignable por celda staff × fecha.
+│
+└── SISTEMA
+    └── Configuración        /configuracion
+        Panel de configuración general dividido en 7 pestañas:
+        ├── Mi Clínica     — Datos de la clínica: nombre, eslogan, datos
+        │                    tributarios SII (RUT empresa, razón social, giro,
+        │                    resolución SII, tipo DTE), dirección y contacto.
+        │                    Logo y plantillas de documentos (boleta, factura,
+        │                    nota de crédito).
+        ├── Doctores       — Gestión de personal médico que aparece en la agenda.
+        ├── Tipos Atención — Alta/edición de motivos de cita con precio base.
+        │                    Botón para cargar defaults predefinidos.
+        ├── Documentos     — Carga de plantillas HTML para boleta, factura y NC.
+        ├── Folios         — Rangos de folios SII por tipo de documento.
+        │                    Progreso (van/quedan), vencimiento. Exportar CSV.
+        ├── Metas          — Configuración de meta de ventas diaria y mensual.
+        │                    Visible como barra de progreso en el Dashboard.
+        └── Hospital       — Configuración de parámetros del módulo de hospedaje
+                             (precio por noche, capacidad máxima, etc.).
+```
+
+---
+
+## 6. Módulos del Sistema
+
+### 6.1 Módulo: Atención al Cliente
 
 #### Funcionalidades
 - **Agenda / Reservas** ✅ _(implementado en UI — 2026-03-25)_
@@ -192,7 +270,7 @@ El sistema está diseñado bajo una arquitectura **white-label**, lo que permite
   - Próxima cita sugerida
   - Archivos adjuntos (radiografías, análisis)
 
-### 5.2 Módulo: Inventario
+### 6.2 Módulo: Inventario
 
 #### Funcionalidades
 - **Categorías de producto**
@@ -219,7 +297,7 @@ El sistema está diseñado bajo una arquitectura **white-label**, lo que permite
   - Productos próximos a vencer
   - Productos bajo stock mínimo
 
-### 5.3 Módulo: Usuarios y Roles
+### 6.3 Módulo: Usuarios y Roles
 
 | Rol | Permisos |
 |-----|---------|
@@ -228,40 +306,156 @@ El sistema está diseñado bajo una arquitectura **white-label**, lo que permite
 | **Recepcionista** | Agenda general, ficha propietario/mascota, no diagnóstico |
 | **Inventarista** | Módulo inventario completo, sin atención |
 
-### 5.4 Módulo: Configuración (White-Label)
+### 6.4 Módulo: Configuración
 
-- Nombre de la veterinaria
-- Logo (imagen)
-- Colores primario y secundario (CSS custom properties)
-- Información de contacto (teléfono, dirección, redes)
-- Configuración de moneda y zona horaria
-- Módulos habilitados/deshabilitados por instancia
+Panel dividido en **7 pestañas**:
+
+| Pestaña | Funcionalidad |
+|---------|--------------|
+| **Mi Clínica** | Nombre fantasía, eslogan, logo, plantillas de documentos. Datos tributarios SII: razón social, RUT empresa, giro, resolución SII, tipo DTE (39=boleta afecta / 41=boleta exenta). Dirección (calle, comuna, ciudad). Contacto (email, teléfonos). |
+| **Doctores** | CRUD de personal médico que aparece en la agenda. Color identificador. Registro de médico veterinario, técnico veterinario, recepcionista, etc. |
+| **Tipos de Atención** | Alta/edición/toggle de motivos de cita con precio base. Carga masiva de defaults predefinidos. |
+| **Documentos** | Subida de plantillas HTML para boleta, factura y nota de crédito. Vista previa del archivo actual. |
+| **Folios** | Rangos de folios SII por tipo (boleta/factura/nota_credito). Número desde/hasta/actual, vencimiento, estado visual (van/quedan). Exportar historial de folios a CSV. |
+| **Metas** | Meta de ventas diaria y mensual en CLP. Se visualizan como barra de progreso en el Dashboard. |
+| **Hospital** | Parámetros del módulo de hospedaje: precio por noche, capacidad máxima, régimen de alimentación por defecto. |
+
+### 6.5 Módulo: Ventas ✅
+
+- Cobro en punto de venta con ítems (nombre, cantidad, precio unitario)
+- Selector de tipo de documento: boleta / factura
+- Campo RUT cliente: opcional en boleta, obligatorio en factura
+- Asignación automática de folio desde rango activo SII
+- Ventas sin folio disponible → estado PENDIENTE; se completan retroactivamente
+- Historial con badge tipo (BOL / FCT / NC), número de folio, total en rojo para NC
+- **Nota de Crédito**: modal con motivo, genera documento DTE 61 referenciando la venta original
+- Impresión / exportación como HTML (usa plantilla cargada en Configuración → Documentos)
+
+### 6.6 Módulo: Hospital ✅ _(v1.1.x)_
+
+Gestión de pacientes hospitalizados (internados / en hospedaje).
+
+#### Funcionalidades
+- **Check-in (Nuevo ingreso)**
+  - Modal de búsqueda de mascota: filtros por especie (pills dinámicos según datos reales) + búsqueda libre por nombre/raza/tutor
+  - Select tipo listbox con formato `🐶 Max (Labrador) — Juan Pérez`
+  - Campos: fecha de ingreso, diagnóstico/motivo, notas adicionales
+- **Vista Activos**: tarjetas de hospedaje activo con días transcurridos, mascota, tutor, diagnóstico, estado
+- **Vista Historial**: tabla de hospedajes finalizados con fecha ingreso/alta
+- **Check-out (Dar de alta)**: confirmación → actualiza estado a `finalizado` en BD
+- **Estadísticas rápidas**: total hospedajes, activos hoy, finalizados este mes
+
+#### Modelo en BD
+```
+Hospedaje
+├── id, tenantId, mascotaId, propietarioId
+├── fechaIngreso, fechaAlta
+├── diagnostico, notas
+└── estado (activo | finalizado)
+```
+
+#### Endpoints
+- `GET /api/hospital?estado=activo|finalizado` — lista por estado
+- `POST /api/hospital` — registrar ingreso (check-in)
+- `PUT /api/hospital/:id/checkout` — dar de alta (check-out)
+
+### 6.7 Módulo: Caja ✅ _(v1.1.x)_
+
+Arqueo y cuadre de caja al cierre del día.
+
+#### Funcionalidades
+- **Cuadre del día**
+  - Denominaciones chilenas vigentes: billetes ($20.000, $10.000, $5.000, $2.000, $1.000) y monedas ($500, $100, $50, $10)
+  - Ingreso de cantidad por denominación → cálculo automático del total en efectivo
+  - Declaración de montos por medio de pago: efectivo, tarjeta, transferencia
+  - Saldo anterior (arrastrado del cierre previo)
+  - Comparación automática contra total de ventas del día (desde BD)
+  - Indicador de diferencia: **✓ Cuadrada** (diferencia < $1) o monto de descuadre en rojo
+  - Registra usuario que hace el cierre (desde JWT)
+- **Historial de cierres**: lista de cierres anteriores con fecha, totales y diferencia
+- **Exportar cierre**: genera HTML imprimible con resumen de medios de pago y detalle de ventas del día
+- **Eliminar cierre**: borrado desde el historial
+
+#### Endpoint backend
+- `GET /api/caja/historial` — lista de cierres
+- `POST /api/caja` — registrar cierre del día
+- `DELETE /api/caja/:id` — eliminar cierre
+- `GET /api/caja/total-mes` — total de ventas del mes en curso (para Dashboard)
+
+### 6.8 Módulo: Personal ✅ _(v1.1.x)_
+
+Gestión del equipo de trabajo de la veterinaria.
+
+#### Funcionalidades
+- **Lista de staff**
+  - CRUD de miembros: nombre, cargo, email, teléfono, notas, color identificador
+  - Cargos disponibles: Médico Veterinario, Técnico Veterinario, Recepcionista, Auxiliar, Administrativo
+  - Color por staff (emerald, teal, cyan, blue, violet, rose) — usado también en agenda
+  - Eliminación con confirmación (borra también sus turnos)
+- **Turnos semanales**
+  - Grilla staff × día (Lun–Dom) con navegación de semana
+  - Tipos de turno: DÍA, TARDE, NOCHE, LIBRE — asignados por clic en celda
+  - Vista responsive: celdas con color e ícono del tipo de turno
+  - Actualización en tiempo real en BD (PUT por celda; BORRAR limpia la celda)
+
+#### Modelo en BD
+```
+Staff
+├── id, tenantId, nombre, cargo, email, telefono, notas, color, activo
+
+Turno
+├── id, staffId, tenantId, fecha (YYYY-MM-DD), tipo (DIA|TARDE|NOCHE|LIBRE), notas
+```
+
+#### Endpoints
+- `GET|POST /api/personal` — lista y creación de staff
+- `PUT|DELETE /api/personal/:id` — editar y eliminar miembro
+- `GET /api/personal/turnos?desde=&hasta=` — turnos en rango de fechas
+- `POST /api/personal/turnos` — crear/actualizar turno de una celda
+- `DELETE /api/personal/turnos/:id` — borrar turno de una celda
+
+### 6.9 Dashboard ✅ _(mejorado en v1.1.x)_
+
+- **Stats del día**: citas hoy, total animales registrados, total productos, stock bajo
+- **Gráfico de ventas del día**: barras SVG por hora con línea de meta diaria
+- **Meta diaria**: total vendido hoy vs meta configurada → barra de progreso + `Faltan $X para la meta`
+- **Meta mensual**: total del mes en curso vs meta mensual → barra de progreso + `✓ Meta alcanzada`
+- **Acciones rápidas**: Nueva cita, Registrar animal, Nueva venta, Ver inventario
+- **Estado del sistema**: servidor, BD, sesión activa
 
 ---
 
-## 6. Modelo de Datos Inicial
+## 7. Modelo de Datos
 
-> Nota: Definición simplificada. El esquema Prisma completo se desarrollará en la fase de implementación.
+> Nota: Definición resumida del esquema Prisma. El archivo completo es `apps/api/prisma/schema.prisma`.
 
 ```
 Tenant (Veterinaria)
-├── id, nombre, logo_url, config_json, slug
+├── id, nombre, slug, logoUrl, config_json
+├── nombreEmpresa, rutEmpresa, giroClinica   ← datos tributarios SII
+├── direccionClinica, comunaClinica, ciudadClinica
+├── eslogan, resolucionSII, dteTipo (39|41)
+├── emailClinica, telefonos
+├── plantillaBoletaUrl, plantillaFacturaUrl, plantillaNotaCreditoUrl
 ├── → Usuarios (1:N)
 ├── → Mascotas (1:N)
-└── → Productos (1:N)
+├── → Productos (1:N)
+├── → Staff (1:N)
+└── → FolioRange (1:N)
 
 Usuario
 ├── id, tenant_id, nombre, email, password_hash, rol
 └── → Citas (1:N como veterinario)
 
-Propietario
+Propietario (Tutor)
 ├── id, tenant_id, nombre, documento, telefono, email, direccion
 └── → Mascotas (1:N)
 
 Mascota
 ├── id, tenant_id, propietario_id, nombre, especie, raza
 ├── fecha_nacimiento, sexo, color, microchip, foto_url
-└── → Consultas (1:N)
+├── → Consultas (1:N)
+└── → Hospedajes (1:N)
 
 Cita
 ├── id, tenant_id, mascota_id, veterinario_id
@@ -273,35 +467,54 @@ Consulta
 ├── peso_kg, temperatura, diagnostico, tratamiento, notas
 └── → ItemsReceta (1:N)
 
-ItemReceta
-├── id, consulta_id, producto_id, cantidad, indicacion
-└── → Producto
-
 Producto
 ├── id, tenant_id, nombre, codigo, categoria, unidad
 ├── stock_actual, stock_minimo, precio_costo, precio_venta
 └── → MovimientosStock (1:N)
 
-MovimientoStock
-├── id, producto_id, tenant_id, tipo (entrada|salida|ajuste)
-├── cantidad, referencia_id (consulta o compra), notas
-└── fecha, usuario_id
+Sale (Venta)
+├── id, tenantId, tipo (boleta|factura|nota_credito)
+├── folio, rutCliente, estado (PENDIENTE|COMPLETADA)
+├── ventaReferenciaId (para Nota de Crédito)
+├── total, subtotal, iva, descuento
+└── → SaleItems (1:N)
 
-Proveedor
-├── id, tenant_id, nombre, contacto, telefono, email
-└── → OrdenesCompra (1:N)
+SaleItem
+├── id, saleId, nombre, cantidad, precioUnitario, tipo (producto|servicio)
 
-OrdenCompra
-├── id, tenant_id, proveedor_id, fecha, numero_factura, estado
-└── → ItemsOrden (1:N)
+FolioRange
+├── id, tenantId, tipo (boleta|factura|nota_credito)
+├── desde, hasta, actual, vencimiento, activo
 
-ItemOrden
-├── id, orden_id, producto_id, cantidad, precio_unitario
+Hospedaje
+├── id, tenantId, mascotaId, propietarioId
+├── fechaIngreso, fechaAlta
+├── diagnostico, notas
+└── estado (activo | finalizado)
+
+Staff
+├── id, tenantId, nombre, cargo, email, telefono, notas, color, activo
+└── → Turnos (1:N)
+
+Turno
+├── id, staffId, tenantId, fecha (YYYY-MM-DD)
+├── tipo (DIA | TARDE | NOCHE | LIBRE)
+└── notas
+
+CajaCierre
+├── id, tenantId, fechaDia, usuarioId
+├── totalVentas, totalEfectivo, totalTarjeta, totalTransferencia
+├── saldoAnterior, diferencia
+└── denominaciones (JSON)
+
+Meta
+├── id, tenantId, tipo (diaria | mensual)
+└── monto
 ```
 
 ---
 
-## 7. Estrategia Offline-First
+## 8. Estrategia Offline-First
 
 ### Principios
 1. **El cliente es la fuente de verdad mientras no hay conexión.** Todo se guarda localmente primero.
@@ -335,7 +548,7 @@ IndexedDB (Dexie.js)
 
 ---
 
-## 8. Estrategia White-Label
+## 9. Estrategia White-Label
 
 ### Configuración por Tenant
 Cada veterinaria tiene un `slug` único (ej: `clinicamax`) que determina:
@@ -369,7 +582,7 @@ Cada veterinaria tiene un `slug` único (ej: `clinicamax`) que determina:
 
 ---
 
-## 9. Estructura del Repositorio
+## 10. Estructura del Repositorio
 
 ```
 kmcvet/
@@ -423,7 +636,7 @@ kmcvet/
 
 ---
 
-## 10. Fases del Proyecto (Roadmap)
+## 11. Fases del Proyecto (Roadmap)
 
 ### Fase 0 — Fundamentos ✅ _completada_
 - [x] Definición de requerimientos
@@ -461,7 +674,7 @@ kmcvet/
 - [ ] Offline: operaciones desde IndexedDB
 - [ ] Sincronización automática al recuperar conexión
 
-### Fase 2 — Core: Inventario
+### Fase 2 — Core: Inventario ✅ _(avanzada)_
 - [x] CRUD Productos con categorías (medicamento/alimento/accesorio/clínico/otro)
 - [x] Registro de entradas con documento (boleta/factura/nota de débito), proveedor e ítems
 - [x] Control de stock mínimo con alertas visuales (⚠ bajo)
@@ -473,22 +686,42 @@ kmcvet/
 - [ ] Reportes básicos (stock bajo, próximos a vencer)
 - [ ] Offline: movimientos encolados y sincronizados
 
-### Fase 3 — White-Label y Multi-Tenant
+### Fase 3 — Ventas, Caja y Documentos SII ✅ _(completada)_
+- [x] **Sistema de Folios SII**: rango desde/hasta/actual por tipo de documento (boleta/factura/nota_credito), vencimiento, UI en Configuración → Folios con historial (van/quedan)
+- [x] **Ventas en POS**: selector tipoDoc, RUT cliente, folio automático desde rango activo
+- [x] **Ventas PENDIENTE/COMPLETADA**: venta sin folio queda pendiente; se completa retroactivamente
+- [x] **Nota de Crédito (DTE 61)**: modal con motivo, referencia al doc original, intento de asignación de folio NC
+- [x] **Historial ventas mejorado**: badge BOL/FCT/NC + N° folio, total NC en rojo
+- [x] **Plantillas documentos SII**: `template-boleta.html` (DTE 39/41), `template-factura.html` (DTE 33), `template-nota-credito.html` (DTE 61) conforme a Res. Ex. N°11/2003 y N°74/2014
+- [x] **Módulo Caja**: arqueo diario con denominaciones chilenas, medios de pago, cierre con diferencia, historial, exportar HTML
+- [x] **Exportar folios CSV**: desde Configuración → Folios
+- [x] **Dashboard meta mensual**: barra de progreso del mes en curso vs meta configurada
+
+### Fase 4 — Hospital y Personal ✅ _(completada)_
+- [x] **Módulo Hospital**: check-in con búsqueda y filtros de especie, tarjetas de hospedaje activo, checkout, historial
+- [x] **Módulo Personal**: CRUD de staff, asignación de turnos semanales (Día/Tarde/Noche/Libre)
+- [x] **Configuración ampliada**: Mi Clínica con datos tributarios SII completos (9 nuevos campos)
+- [x] **Versión v1.1.5** del sistema
+
+### Fase 5 — White-Label y Multi-Tenant _(pendiente)_
 - [ ] Panel de configuración por veterinaria
 - [ ] Carga dinámica de logo y colores
 - [ ] Sistema de dominios personalizados
 - [ ] Panel de superadmin (gestión de tenants)
 - [ ] Onboarding de nueva veterinaria
 
-### Fase 4 — Mejoras y Pulido
+### Fase 6 — Mejoras y Pulido _(pendiente)_
+- [ ] Ficha de consulta (diagnóstico, tratamiento) vinculada a cita
+- [ ] Historial clínico por mascota con línea de tiempo
 - [ ] Aplicación móvil (Capacitor sobre la PWA)
 - [ ] Notificaciones push (recordatorio de citas)
 - [ ] Estadísticas y reportes avanzados
 - [ ] Exportación a PDF (fichas, recetas, reportes)
 - [ ] Backup automático por tenant
 - [ ] Dark mode
+- [ ] Inyección automática de variables `{{NOMBRE_EMPRESA}}` en plantillas desde el backend
 
-### Fase 5 — Comercialización
+### Fase 7 — Comercialización _(pendiente)_
 - [ ] Landing page de producto
 - [ ] Proceso de contratación/suscripción
 - [ ] Documentación para administradores
@@ -496,7 +729,7 @@ kmcvet/
 
 ---
 
-## 11. Decisiones de Diseño
+## 12. Decisiones de Diseño
 
 | Decisión | Alternativas consideradas | Razón de la elección |
 |----------|--------------------------|---------------------|
@@ -519,7 +752,7 @@ kmcvet/
 
 ---
 
-## 12. Registro de Cambios
+## 13. Registro de Cambios
 
 | Fecha | Versión | Descripción | Autor |
 |-------|---------|-------------|-------|
@@ -536,14 +769,18 @@ kmcvet/
 | 2026-03-25 | 0.6.0 | **Persistencia citas + Auth guard + Tutor search + Renombrado UI.** (1) `AtencionModule`: `GET /api/citas?desde=&hasta=`, `POST /api/citas`, `DELETE /api/citas/:id` — citas vinculadas a `Pet` real; acepta `mascotaId` opcional o crea pet por nombre. (2) `PrivateRoute` en `router.tsx`: redirige a `/login` si no hay `kmcvet_token` — fix de errores 401. (3) Renombrado global "Propietario" → "Tutor" en toda la interfaz (AnimalesPage, AgendaPage). (4) Modal nueva cita rediseñado: búsqueda por RUT del tutor → lista de mascotas registradas → selección o creación inline. (5) Nuevo endpoint `GET /api/animales/buscar-tutor?rut=XXX`. (6) `animales.service.ts`: `mapPet()` devuelve campo `tutor`, métodos `create`/`update` aceptan `dto.tutor` o `dto.propietario` (compatibilidad). | — |
 | 2026-03-26 | 0.7.0 | **Modal de detalle de cita + historial por mascota + fix JWT + fix fecha.** (1) `ModalDetalleCita`: clic en cualquier cita (grid semanal o panel lateral) abre modal con doctor, fecha/hora/duración, mascota, tutor y motivo. (2) Historial de atenciones **por mascota** (no por tutor) en el modal — cita seleccionada excluida del listado. (3) Nuevo endpoint `GET /api/citas/historial/:mascotaId`. (4) `mapCita()` actualizado: devuelve `mascotaId` y `propietario` (obtenido del join `mascota.propietario.nombre`). (5) Fix `JWT_EXPIRES_IN`: cambiado de `15m` a `8h` — token expiraba en plena jornada causando 401 en todas las peticiones. (6) Fix fecha hardcodeada: `new Date(2026, 2, 25)` → `new Date()` (corregido en sesión anterior). | — |
 | 2026-04-01 | 0.8.0 | **Módulo Ventas completo: folios SII, tipos de documento, RUT cliente, Nota de Crédito, cobros pendientes.** (1) **Sistema de Folios** (`FolioRange` model): rango desde/hasta/actual por tipo (boleta/factura/nota_credito), vencimiento, UI en Configuración → Folios con historial (Van/Quedan). (2) **Boleta PDF mejorada**: HTML A4 con CSS, folio real, tipo doc, IVA referencial desglosado, plantilla de imagen por tipo. (3) **Ventas PENDIENTE/COMPLETADA**: venta sin folio activo queda en estado PENDIENTE; endpoint `PUT /api/ventas/:id/completar` asigna folio retroactivamente. (4) **Tab Pendiente** en VentasPage: listado separado con banner genérico; botón «Reintentar» carga los ítems de vuelta en «Nuevo cobro» (en lugar de reintentar asignación de folio). (5) **Selector tipoDoc**: dropdown boleta/factura en «Nuevo cobro»; campo RUT cliente opcional para boleta, obligatorio para factura; auto-relleno desde `location.state.rutPropietario` cuando viene desde la agenda. (6) **Nota de Crédito** (`nota_credito`): endpoint `POST /api/ventas/:id/nota-credito` crea documento referenciando la venta original (`ventaReferenciaId`), intenta asignar folio NC; botón «NC» por fila en Historial abre `ModalNotaCredito` con motivo obligatorio; filas NC se muestran en rojo en la tabla. (7) **VentasPage Historial mejorado**: badge BOL/FCT/NC + N° folio en columna Fecha; total NC en rojo. (8) **PDF Nota de Crédito**: referencia al documento original en la boleta impresa; RUT cliente incluido si está disponible. (9) Migración `20260402000000_sale_rut_referencia`: `rutCliente TEXT`, `ventaReferenciaId TEXT` en tabla `sales`. | — |
+| 2026-04-10 | 1.0.0 | **Módulo Caja + Dashboard Meta Mensual + Personal + Hospital + Plantillas SII.** (1) **CajaPage**: arqueo diario con denominaciones chilenas vigentes (billetes $1K–$20K, monedas $10–$500), medios de pago (efectivo/tarjeta/transferencia), comparación vs ventas del sistema, diferencia cuadrada/descuadrada, historial de cierres, exportar HTML imprimible. (2) **PersonalPage**: CRUD staff con cargos y color, turnos semanales en grilla (Día/Tarde/Noche/Libre) con navegación de semana, asignación por clic en celda. (3) **HospitalPage**: check-in con filtros de especie y búsqueda libre, tarjetas de hospedaje activo, checkout, historial finalizado. (4) **Plantillas SII** en `docs/`: `template-boleta.html` (DTE 39/41), `template-factura.html` (DTE 33), `template-nota-credito.html` (DTE 61) — conformes a Res. Ex. SII N°11/2003 y N°74/2014, con resolución SII, timbre electrónico placeholder, bloque CEDEABLE (factura) y bloque referencia obligatorio (NC). (5) **Dashboard meta mensual**: `GET /api/caja/total-mes` + `GET /api/metas?tipo=mensual` → barra de progreso mensual junto a la meta diaria. (6) **Exportar folios CSV** desde Configuración → Folios. (7) **Sidebar**: nuevos grupos GESTIÓN (Inventario, Caja, Personal) y en CLÍNICA se agrega Hospital. (8) Migraciones: `hospedaje`, `staff_turnos`. | — |
+| 2026-04-18 | 1.1.5 | **Configuración Mi Clínica expandida + fixes Hospital modal + bump versión.** (1) **Prisma Tenant**: 9 nuevos campos opcionales: `nombreEmpresa`, `rutEmpresa`, `giroClinica`, `direccionClinica`, `comunaClinica`, `ciudadClinica`, `eslogan`, `resolucionSII`, `dteTipo` (@default "39"). (2) **ConfiguracionPage**: `ClinicaConfig` interface expandida; `SeccionClinica` reescrita en 4 secciones coloreadas (Identidad, Datos tributarios SII, Dirección, Contacto); selector DTE 39/41. (3) **HospitalPage `ModalCheckin`**: fix `r.data` era el array directamente (no `r.data.items`); fix propiedad `tutor` (no `propietario`); pills de filtro por especie dinámicos; búsqueda libre por nombre/raza/tutor; select tipo listbox con `🐶 Max (Labrador) — Juan Pérez`. (4) **animales.service.ts `mapPet`**: agrega `tutorId` y `tutor.id` al objeto retornado. (5) **Versión** `v1.1.2` → `v1.1.5` en `AppLayout.tsx`. (6) `db push` y rebuild completo exitoso. | — |
 
 ---
 
-> **Estado actual**: Fase 0 completada + Fase 1 base completa + Fase 2 avanzada (v0.8.0). Sistema funcional con `node apps/api/dist/main.js`.
+> **Estado actual** (v1.1.5): Fases 0–4 completadas. Sistema funcional con `node apps/api/dist/main.js`.
 >
-> **Persistencia activa**: Animales, Inventario, Citas, Ventas, Folios guardan en SQLite. Los datos sobreviven reinicios del servidor.
+> **Módulos en producción**: Dashboard, Atención (agenda), Animales, Hospital, Ventas, Inventario, Caja, Personal, Configuración.
 >
-> **Auth activa**: `PrivateRoute` en router — cualquier acceso sin token JWT redirige a `/login`.
+> **Persistencia activa**: Animales, Inventario, Citas, Ventas, Folios, Hospedaje, Staff/Turnos, Caja guardan en SQLite. Los datos sobreviven reinicios del servidor.
+>
+> **Auth activa**: `PrivateRoute` en router — cualquier acceso sin token JWT redirige a `/login`. Token válido 8h.
 >
 > **Endpoints disponibles**:
 > - `POST /api/auth/login`
@@ -552,8 +789,12 @@ kmcvet/
 > - `GET /api/citas?desde=&hasta=` + `POST /api/citas` + `DELETE /api/citas/:id` + `GET /api/citas/historial/:mascotaId`
 > - `GET|POST /api/ventas` + `PUT /api/ventas/:id/completar` + `POST /api/ventas/:id/nota-credito`
 > - `GET|PUT /api/configuracion/clinica` + `GET|POST /api/configuracion/tipos-atencion` + `GET|POST /api/configuracion/folios`
-> - `GET|POST /api/reserva/doctores|motivos|disponibilidad|{POST}`
+> - `GET|POST /api/reserva/doctores|motivos|disponibilidad`
+> - `GET|POST /api/hospital` + `PUT /api/hospital/:id/checkout`
+> - `GET|POST|PUT|DELETE /api/personal` + `GET|POST /api/personal/turnos` + `DELETE /api/personal/turnos/:id`
+> - `GET /api/caja/historial` + `POST /api/caja` + `DELETE /api/caja/:id` + `GET /api/caja/total-mes`
+> - `GET|POST|PUT /api/metas`
 >
-> Todos los endpoints (excepto login y `/api/reserva/*`) requieren JWT en header `Authorization: Bearer <token>`.
+> Todos los endpoints (excepto `POST /api/auth/login` y `/api/reserva/*`) requieren JWT en header `Authorization: Bearer <token>`.
 >
-> **Próximo paso**: ficha de consulta (diagnóstico, tratamiento) vinculada a cita; historial clínico por mascota; envío de boleta por email.
+> **Próximos pasos sugeridos**: ficha de consulta (diagnóstico, tratamiento) vinculada a cita; historial clínico por mascota; inyección de variables `{{NOMBRE_EMPRESA}}` etc. en plantillas desde el backend al imprimir; envío de boleta por email.
