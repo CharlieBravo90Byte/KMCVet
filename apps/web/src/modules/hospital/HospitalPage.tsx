@@ -17,6 +17,7 @@ interface Hospedaje {
   precioPorNoche?: number;
   notas?: string;
   createdAt: string;
+  updatedAt?: string;
   pet: { id: string; nombre: string; especie: string; raza?: string };
   propietario: { id: string; nombre: string; telefono: string };
 }
