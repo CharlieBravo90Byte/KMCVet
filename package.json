@@ -17,9 +17,10 @@
     "setup": "pnpm install && pnpm db:generate && pnpm --filter @kmcvet/api db:migrate"
   },
   "devDependencies": {
-    "turbo": "^2.5.0",
-    "typescript": "^5.8.2",
+    "@types/node": "^22.13.0",
     "prettier": "^3.5.3",
-    "@types/node": "^22.13.0"
+    "prisma": "^6.19.3",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.2"
   }
 }
